@@ -394,52 +394,54 @@ require_once '../../includes/header.php';
                 </div>
             </div>
 
-            <h3>Class Roster</h3>
+            <?php if (!$is_student): ?>
+                <h3>Class Roster</h3>
 
-            <?php if ($can_edit): ?>
-                <div style="margin-bottom: 20px;">
-                    <form method="POST">
-                        <input type="hidden" name="enroll_student" value="1">
-                        <select name="student_id" class="form-control" style="margin-bottom: 5px;" required>
-                            <option value="">Enroll Student...</option>
-                            <?php foreach ($all_students as $std): ?>
-                                <option value="<?php echo $std['id']; ?>"><?php echo htmlspecialchars($std['name']); ?>
-                                    (<?php echo $std['email']; ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button type="submit" class="btn btn-secondary"
-                            style="width: 100%; font-size: 12px;">Enroll</button>
-                    </form>
-                </div>
-            <?php endif; ?>
+                <?php if ($can_edit): ?>
+                    <div style="margin-bottom: 20px;">
+                        <form method="POST">
+                            <input type="hidden" name="enroll_student" value="1">
+                            <select name="student_id" class="form-control" style="margin-bottom: 5px;" required>
+                                <option value="">Enroll Student...</option>
+                                <?php foreach ($all_students as $std): ?>
+                                    <option value="<?php echo $std['id']; ?>"><?php echo htmlspecialchars($std['name']); ?>
+                                        (<?php echo $std['email']; ?>)</option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="submit" class="btn btn-secondary"
+                                style="width: 100%; font-size: 12px;">Enroll</button>
+                        </form>
+                    </div>
+                <?php endif; ?>
 
-            <ul style="list-style: none;">
-                <?php foreach ($roster as $r): ?>
-                    <li
-                        style="padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
-                        <div
-                            style="width: 30px; height: 30px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b;">
-                            <?php echo strtoupper(substr($r['name'], 0, 1)); ?>
-                        </div>
-                        <div>
-                            <div style="font-weight: 500; font-size: 14px;">
-                                <a href="../students/enrollment_details.php?student_id=<?php echo $r['id']; ?>&class_id=<?php echo $class_id; ?>"
-                                    style="color: inherit; text-decoration: none; border-bottom: 1px dotted #ccc;"
-                                    title="View Performance Calendar">
-                                    <?php echo htmlspecialchars($r['name']); ?>
-                                </a>
+                <ul style="list-style: none;">
+                    <?php foreach ($roster as $r): ?>
+                        <li
+                            style="padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
+                            <div
+                                style="width: 30px; height: 30px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #64748b;">
+                                <?php echo strtoupper(substr($r['name'], 0, 1)); ?>
                             </div>
-                            <div style="font-size: 11px; color: #94a3b8;"><?php echo htmlspecialchars($r['email']); ?></div>
-                        </div>
-                        <?php if ($can_edit): ?>
-                            <a href="?class_id=<?php echo $class_id; ?>&unenroll=<?php echo $r['id']; ?>"
-                                onclick="return confirm('Remove student from class?')"
-                                style="margin-left: auto; color: #ef4444; font-size: 18px; text-decoration: none;"
-                                title="Unenroll">×</a>
-                        <?php endif; ?>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
+                            <div>
+                                <div style="font-weight: 500; font-size: 14px;">
+                                    <a href="../students/enrollment_details.php?student_id=<?php echo $r['id']; ?>&class_id=<?php echo $class_id; ?>"
+                                        style="color: inherit; text-decoration: none; border-bottom: 1px dotted #ccc;"
+                                        title="View Performance Calendar">
+                                        <?php echo htmlspecialchars($r['name']); ?>
+                                    </a>
+                                </div>
+                                <div style="font-size: 11px; color: #94a3b8;"><?php echo htmlspecialchars($r['email']); ?></div>
+                            </div>
+                            <?php if ($can_edit): ?>
+                                <a href="?class_id=<?php echo $class_id; ?>&unenroll=<?php echo $r['id']; ?>"
+                                    onclick="return confirm('Remove student from class?')"
+                                    style="margin-left: auto; color: #ef4444; font-size: 18px; text-decoration: none;"
+                                    title="Unenroll">×</a>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
         </div>
     </div>
 </div>

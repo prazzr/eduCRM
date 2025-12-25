@@ -2,17 +2,39 @@
 require_once '../../config.php';
 requireLogin();
 
-requireAdminOrCounselor();
+// Role Check
+if (hasRole('student')) {
+    die("Unauthorized access.");
+}
 
-// Fetch all students
-$students = $pdo->query("
-    SELECT u.id, u.name, u.email, u.phone, u.country, u.education_level, u.created_at
+$is_teacher_only = hasRole('teacher') && !hasRole('admin') && !hasRole('counselor');
+
+// Build Query
+$sql = "
+    SELECT DISTINCT u.id, u.name, u.email, u.phone, u.country, u.education_level, u.created_at
     FROM users u
     JOIN user_roles ur ON u.id = ur.user_id
     JOIN roles r ON ur.role_id = r.id
-    WHERE r.name = 'student'
-    ORDER BY u.id DESC
-")->fetchAll();
+";
+
+// If Teacher, join enrollments to filter
+if ($is_teacher_only) {
+    $sql .= "
+        JOIN enrollments e ON u.id = e.student_id
+        JOIN classes c ON e.class_id = c.id
+        WHERE r.name = 'student' AND c.teacher_id = ?
+    ";
+    $params = [$_SESSION['user_id']];
+} else {
+    $sql .= " WHERE r.name = 'student' ";
+    $params = [];
+}
+
+$sql .= " ORDER BY u.id DESC";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$students = $stmt->fetchAll();
 
 $pageDetails = ['title' => 'Student Management'];
 require_once '../../includes/header.php';

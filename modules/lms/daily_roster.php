@@ -60,15 +60,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_performance']) &
 }
 
 // Fetch Students & existing performance
-$students_stmt = $pdo->prepare("
+// Fetch Students & existing performance
+$sql = "
     SELECT u.id, u.name, dp.attendance, dp.class_task_mark, dp.home_task_mark, dp.remarks
     FROM enrollments e
     JOIN users u ON e.student_id = u.id
     LEFT JOIN daily_performance dp ON dp.student_id = u.id AND dp.roster_id = ?
     WHERE e.class_id = ?
-    ORDER BY u.name
-");
-$students_stmt->execute([$roster_id, $class_id]);
+";
+$params = [$roster_id, $class_id];
+
+// Privacy Filter: Students see ONLY themselves
+if (!$can_edit && hasRole('student')) {
+    $sql .= " AND u.id = ?";
+    $params[] = $_SESSION['user_id'];
+}
+
+$sql .= " ORDER BY u.name";
+
+$students_stmt = $pdo->prepare($sql);
+$students_stmt->execute($params);
 $students = $students_stmt->fetchAll();
 
 $pageDetails = ['title' => 'Daily Roster - ' . date('M d', strtotime($details['roster_date']))];
@@ -112,9 +123,11 @@ require_once '../../includes/header.php';
                         <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Student Name</th>
                         <th style="padding: 12px; border-bottom: 2px solid #e2e8f0; width: 150px;">
                             Attendance
-                            <button type="button" onclick="markAllPresent()"
-                                style="display: block; font-size: 9px; padding: 2px 4px; border: 1px solid #ccc; background: #fff; margin-top: 5px; cursor: pointer; border-radius: 3px;">Mark
-                                All Present</button>
+                            <?php if ($can_edit): ?>
+                                <button type="button" onclick="markAllPresent()"
+                                    style="display: block; font-size: 9px; padding: 2px 4px; border: 1px solid #ccc; background: #fff; margin-top: 5px; cursor: pointer; border-radius: 3px;">Mark
+                                    All Present</button>
+                            <?php endif; ?>
                         </th>
                         <th style="padding: 12px; border-bottom: 2px solid #e2e8f0; width: 120px;">Class Task</th>
                         <th style="padding: 12px; border-bottom: 2px solid #e2e8f0; width: 120px;">Home Task</th>
@@ -129,32 +142,56 @@ require_once '../../includes/header.php';
                                     <strong><?php echo htmlspecialchars($s['name']); ?></strong>
                                 </td>
                                 <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">
-                                    <select name="attendance[<?php echo $s['id']; ?>]" class="form-control"
-                                        style="font-size: 13px;">
-                                        <option value="present" <?php echo ($s['attendance'] == 'present') ? 'selected' : ''; ?>>
-                                            Present</option>
-                                        <option value="absent" <?php echo ($s['attendance'] == 'absent') ? 'selected' : ''; ?>>
-                                            Absent</option>
-                                        <option value="late" <?php echo ($s['attendance'] == 'late') ? 'selected' : ''; ?>>Late
-                                        </option>
-                                    </select>
+                                    <?php if ($can_edit): ?>
+                                        <select name="attendance[<?php echo $s['id']; ?>]" class="form-control"
+                                            style="font-size: 13px;">
+                                            <option value="present" <?php echo ($s['attendance'] == 'present') ? 'selected' : ''; ?>>
+                                                Present</option>
+                                            <option value="absent" <?php echo ($s['attendance'] == 'absent') ? 'selected' : ''; ?>>
+                                                Absent</option>
+                                            <option value="late" <?php echo ($s['attendance'] == 'late') ? 'selected' : ''; ?>>Late
+                                            </option>
+                                        </select>
+                                    <?php else: ?>
+                                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; background: <?php echo match ($s['attendance']) {
+                                            'present' => '#dcfce7; color: #166534',
+                                            'absent' => '#fee2e2; color: #991b1b',
+                                            'late' => '#fef3c7; color: #92400e',
+                                            default => '#f1f5f9; color: #64748b'
+                                        }; ?>">
+                                            <?php echo ucfirst($s['attendance'] ?: 'Pending'); ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
                                 <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">
-                                    <input type="number" step="0.5" name="class_mark[<?php echo $s['id']; ?>]"
-                                        class="form-control" placeholder="Marks"
-                                        value="<?php echo htmlspecialchars($s['class_task_mark'] ?? ''); ?>"
-                                        style="font-size: 13px;">
+                                    <?php if ($can_edit): ?>
+                                        <input type="number" step="0.5" name="class_mark[<?php echo $s['id']; ?>]"
+                                            class="form-control" placeholder="Marks"
+                                            value="<?php echo htmlspecialchars($s['class_task_mark'] ?? ''); ?>"
+                                            style="font-size: 13px;">
+                                    <?php else: ?>
+                                        <?php echo htmlspecialchars($s['class_task_mark'] ?? '-'); ?>
+                                    <?php endif; ?>
                                 </td>
                                 <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">
-                                    <input type="number" step="0.5" name="home_mark[<?php echo $s['id']; ?>]"
-                                        class="form-control" placeholder="Marks"
-                                        value="<?php echo htmlspecialchars($s['home_task_mark'] ?? ''); ?>"
-                                        style="font-size: 13px;">
+                                    <?php if ($can_edit): ?>
+                                        <input type="number" step="0.5" name="home_mark[<?php echo $s['id']; ?>]"
+                                            class="form-control" placeholder="Marks"
+                                            value="<?php echo htmlspecialchars($s['home_task_mark'] ?? ''); ?>"
+                                            style="font-size: 13px;">
+                                    <?php else: ?>
+                                        <?php echo htmlspecialchars($s['home_task_mark'] ?? '-'); ?>
+                                    <?php endif; ?>
                                 </td>
                                 <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">
-                                    <input type="text" name="remarks[<?php echo $s['id']; ?>]" class="form-control"
-                                        placeholder="Opt. notes..." value="<?php echo htmlspecialchars($s['remarks'] ?? ''); ?>"
-                                        style="font-size: 13px;">
+                                    <?php if ($can_edit): ?>
+                                        <input type="text" name="remarks[<?php echo $s['id']; ?>]" class="form-control"
+                                            placeholder="Opt. notes..." value="<?php echo htmlspecialchars($s['remarks'] ?? ''); ?>"
+                                            style="font-size: 13px;">
+                                    <?php else: ?>
+                                        <span
+                                            style="color: #64748b; font-size: 13px; font-style: italic;"><?php echo htmlspecialchars($s['remarks'] ?? ''); ?></span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

@@ -49,18 +49,17 @@
                     <a href="<?php echo BASE_URL; ?>modules/lms/classes.php">Classes</a>
                 <?php endif; ?>
 
-                <?php if (hasRole('admin') || hasRole('teacher') || hasRole('student')): ?>
+                <?php if (hasRole('admin') || hasRole('teacher')): ?>
                     <a href="<?php echo BASE_URL; ?>modules/lms/courses.php">LMS</a>
                 <?php endif; ?>
 
-                <?php if (hasRole('admin') || hasRole('accountant') || hasRole('student')): ?>
+                <?php if (hasRole('admin') || hasRole('accountant')): ?>
                     <a href="<?php echo BASE_URL; ?>modules/accounting/ledger.php">Accounting</a>
                 <?php endif; ?>
 
                 <?php if (hasRole('student')): ?>
                     <a href="<?php echo BASE_URL; ?>modules/students/profile.php?id=<?php echo $_SESSION['user_id']; ?>">My
                         Profile</a>
-                    <a href="<?php echo BASE_URL; ?>modules/documents/list.php">My Docs</a>
                 <?php endif; ?>
 
                 <!-- Notifications Dropdown (Simplified as link for now) -->

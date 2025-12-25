@@ -283,26 +283,16 @@ require_once 'includes/header.php';
             $l_pct = $total_days > 0 ? ($late / $total_days) * 100 : 0;
             $a_pct = $total_days > 0 ? ($absent / $total_days) * 100 : 0;
 
-            // Task Completion Logic
-            $task_stmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT cm.id) 
-            FROM class_materials cm
-            JOIN enrollments e ON cm.class_id = e.class_id
-            WHERE e.student_id = ? AND cm.type = 'assignment'
-        ");
-            $task_stmt->execute([$_SESSION['user_id']]);
-            $total_tasks = $task_stmt->fetchColumn() ?: 0;
-
-            $sub_stmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT s.material_id)
-            FROM submissions s
-            JOIN class_materials cm ON s.material_id = cm.id
-            WHERE s.student_id = ? AND cm.type = 'assignment'
-        ");
-            $sub_stmt->execute([$_SESSION['user_id']]);
-            $completed_tasks = $sub_stmt->fetchColumn() ?: 0;
-
-            $pending_tasks = max(0, $total_tasks - $completed_tasks);
+            // Average Marks Logic
+            $avg_stmt = $pdo->prepare("
+                SELECT AVG(class_task_mark) as avg_class, AVG(home_task_mark) as avg_home
+                FROM daily_performance
+                WHERE student_id = ?
+            ");
+            $avg_stmt->execute([$_SESSION['user_id']]);
+            $avgs = $avg_stmt->fetch();
+            $avg_class = round($avgs['avg_class'] ?: 0, 1);
+            $avg_home = round($avgs['avg_home'] ?: 0, 1);
             ?>
 
             <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
@@ -314,12 +304,13 @@ require_once 'includes/header.php';
                 </div>
 
                 <div class="card">
-                    <h3>Task Completion Ratio</h3>
+                    <h3>Average Performance</h3>
                     <div class="attendance-summary" style="display: flex; justify-content: center;">
-                        <canvas id="taskChart" style="max-height: 250px;"></canvas>
+                        <canvas id="perfChart" style="max-height: 250px;"></canvas>
                     </div>
                     <div style="text-align: center; margin-top: 10px; font-size: 14px; color: #64748b;">
-                        <?php echo $completed_tasks; ?> Completed / <?php echo $total_tasks; ?> Total
+                        <div>Class Task Avg: <strong><?php echo $avg_class; ?></strong></div>
+                        <div>Home Task Avg: <strong><?php echo $avg_home; ?></strong></div>
                     </div>
                 </div>
             </div>
@@ -333,9 +324,9 @@ require_once 'includes/header.php';
                     absent: <?php echo $absent; ?>
                 };
 
-                const taskData = {
-                    completed: <?php echo $completed_tasks; ?>,
-                    pending: <?php echo $pending_tasks; ?>
+                const perfData = {
+                    class: <?php echo $avg_class; ?>,
+                    home: <?php echo $avg_home; ?>
                 };
             </script>
         <?php endif; ?>
@@ -383,7 +374,7 @@ require_once 'includes/header.php';
     ?>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Common Chart Config
             const commonOptions = {
                 responsive: true,
@@ -406,19 +397,29 @@ require_once 'includes/header.php';
                 });
             }
 
-            // Student Task Chart
-            const taskChartCtx = document.getElementById('taskChart');
-            if (taskChartCtx && typeof taskData !== 'undefined') {
-                new Chart(taskChartCtx, {
-                    type: 'doughnut',
+            // Student Performance Chart (Bar)
+            const perfChartCtx = document.getElementById('perfChart');
+            if (perfChartCtx && typeof perfData !== 'undefined') {
+                new Chart(perfChartCtx, {
+                    type: 'bar',
                     data: {
-                        labels: ['Completed', 'Pending'],
+                        labels: ['Class Task', 'Home Task'],
                         datasets: [{
-                            data: [taskData.completed, taskData.pending],
-                            backgroundColor: ['#3b82f6', '#e2e8f0'] // Blue, Gray
+                            label: 'Average Marks',
+                            data: [perfData.class, perfData.home],
+                            backgroundColor: ['#3b82f6', '#8b5cf6'], // Blue, Purple
+                            borderRadius: 6
                         }]
                     },
-                    options: commonOptions
+                    options: {
+                        ...commonOptions,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100
+                            }
+                        }
+                    }
                 });
             }
 

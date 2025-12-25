@@ -30,6 +30,29 @@ $details = $info_stmt->fetch();
 if (!$details)
     die("Enrollment record not found.");
 
+// --- ACCESS CONTROL START ---
+$can_view = false;
+
+if (hasRole('admin')) {
+    $can_view = true;
+} elseif (hasRole('teacher')) {
+    // Only if this teacher teaches THIS class
+    if ($details['teacher_id'] == $_SESSION['user_id']) {
+        $can_view = true;
+    }
+} elseif (hasRole('student')) {
+    // Only if the student is viewing THEIR OWN record
+    if ($details['student_id'] == $_SESSION['user_id']) {
+        $can_view = true;
+    }
+}
+
+if (!$can_view) {
+    // Optional: Log this unauthorized attempt
+    die("Unauthorized access. You do not have permission to view this page.");
+}
+// --- ACCESS CONTROL END ---
+
 // Fetch all monthly performance data for calendar
 $start_date = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
 $end_date = date("Y-m-t", strtotime($start_date));
@@ -235,19 +258,22 @@ require_once '../../includes/header.php';
             <div style="font-size: 10px; color: #94a3b8; font-weight: bold;">OVERALL ATTENDANCE</div>
             <div
                 style="font-size: 20px; font-weight: bold; color: <?php echo $life_attn >= 75 ? '#16a34a' : '#ef4444'; ?>;">
-                <?php echo round($life_attn, 1); ?>%</div>
+                <?php echo round($life_attn, 1); ?>%
+            </div>
         </div>
         <div
             style="padding: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center;">
             <div style="font-size: 10px; color: #94a3b8; font-weight: bold;">CLASS TASK AVG</div>
             <div style="font-size: 20px; font-weight: bold; color: #1e293b;">
-                <?php echo round($life_perf['avg_class_mark'] ?: 0, 1); ?></div>
+                <?php echo round($life_perf['avg_class_mark'] ?: 0, 1); ?>
+            </div>
         </div>
         <div
             style="padding: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center;">
             <div style="font-size: 10px; color: #94a3b8; font-weight: bold;">HOME TASK AVG</div>
             <div style="font-size: 20px; font-weight: bold; color: #1e293b;">
-                <?php echo round($life_perf['avg_home_mark'] ?: 0, 1); ?></div>
+                <?php echo round($life_perf['avg_home_mark'] ?: 0, 1); ?>
+            </div>
         </div>
     </div>
 

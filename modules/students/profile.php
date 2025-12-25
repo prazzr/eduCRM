@@ -28,6 +28,20 @@ if (hasRole('student') && !hasRole('admin') && !hasRole('counselor') && $student
     die("Unauthorized access.");
 }
 
+// Security: Teachers can only view profiles of students in their classes
+if (hasRole('teacher') && !hasRole('admin') && !hasRole('counselor')) {
+    $check_stmt = $pdo->prepare("
+        SELECT 1 
+        FROM enrollments e 
+        JOIN classes c ON e.class_id = c.id 
+        WHERE e.student_id = ? AND c.teacher_id = ?
+    ");
+    $check_stmt->execute([$student_id, $_SESSION['user_id']]);
+    if (!$check_stmt->fetch()) {
+        die("Unauthorized access (Student not in your class).");
+    }
+}
+
 // Fetch Documents
 $docs = $pdo->prepare("SELECT * FROM student_documents WHERE student_id = ? ORDER BY uploaded_at DESC");
 $docs->execute([$student_id]);
@@ -60,15 +74,26 @@ if ($perf_summary['total_days'] > 0) {
 }
 
 // Fetch Detailed Daily Performance Logs
-$logs_stmt = $pdo->prepare("
+// Fetch Detailed Daily Performance Logs
+$class_filter = isset($_GET['class_filter']) ? (int) $_GET['class_filter'] : 0;
+$log_sql = "
     SELECT dp.*, dr.roster_date, dr.topic, c.name as class_name
     FROM daily_performance dp
     JOIN daily_rosters dr ON dp.roster_id = dr.id
     JOIN classes c ON dr.class_id = c.id
     WHERE dp.student_id = ?
-    ORDER BY dr.roster_date DESC
-");
-$logs_stmt->execute([$student_id]);
+";
+$log_params = [$student_id];
+
+if ($class_filter) {
+    $log_sql .= " AND c.id = ?";
+    $log_params[] = $class_filter;
+}
+
+$log_sql .= " ORDER BY dr.roster_date DESC";
+
+$logs_stmt = $pdo->prepare($log_sql);
+$logs_stmt->execute($log_params);
 $daily_logs = $logs_stmt->fetchAll();
 
 // Fetch Visa Workflow
@@ -93,7 +118,7 @@ if (isset($_GET['msg'])) {
 $tab = isset($_GET['tab']) ? $_GET['tab'] : 'profile';
 
 // Handle New Log
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log']) && !hasRole('student')) {
     $type = $_POST['type'];
     $msg = sanitize($_POST['message']);
 
@@ -292,11 +317,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['doc'])) {
             $pdo->prepare("INSERT INTO student_documents (student_id, title, file_path) VALUES (?, ?, ?)")->execute([$student_id, $title, $proxy_link]);
 
             logAction('document_upload', "User " . $_SESSION['user_id'] . " uploaded $fname for Student $student_id");
-            header("Location: profile.php?id=$student_id&tab=vault&msg=doc_uploaded");
+            header("Location: profile.php?id=$student_id&tab=docs&msg=doc_uploaded");
             exit;
         }
     } catch (Exception $e) {
-        $message = "Vault Error: " . $e->getMessage();
+        $message = "Document Error: " . $e->getMessage();
         $msg_type = 'error';
     }
 }
@@ -309,7 +334,7 @@ if (isset($_GET['delete_fee']) && hasRole('admin')) {
 }
 if (isset($_GET['delete_doc']) && !hasRole('student')) {
     $pdo->prepare("DELETE FROM student_documents WHERE id = ? AND student_id = ?")->execute([$_GET['delete_doc'], $student_id]);
-    header("Location: profile.php?id=$student_id&tab=vault");
+    header("Location: profile.php?id=$student_id&tab=docs");
     exit;
 }
 
@@ -387,7 +412,7 @@ require_once '../../includes/header.php';
     $tabs = [
         'profile' => '👤 Profile',
         'ledger' => '💰 Ledger',
-        'vault' => '📁 Vault',
+        'docs' => '📁 My Docs',
         'classes' => '🎓 Classes',
         'visa' => '✈️ Visa',
         'logs' => '📝 Logs'
@@ -409,8 +434,10 @@ require_once '../../includes/header.php';
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3>Primary Information</h3>
-            <a href="edit.php?id=<?php echo $student_id; ?>" class="btn btn-secondary"
-                style="font-size: 11px; padding: 5px 12px;">Edit Profile</a>
+            <?php if (!hasRole('student')): ?>
+                <a href="edit.php?id=<?php echo $student_id; ?>" class="btn btn-secondary"
+                    style="font-size: 11px; padding: 5px 12px;">Edit Profile</a>
+            <?php endif; ?>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div>
@@ -518,7 +545,7 @@ require_once '../../includes/header.php';
         </table>
     </div>
 
-<?php elseif ($tab === 'vault'): ?>
+<?php elseif ($tab === 'docs'): ?>
     <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
         <div class="card" style="background: #eff6ff; border: 1px dashed #bfdbfe;">
             <h4>Upload New File</h4>
@@ -532,7 +559,7 @@ require_once '../../includes/header.php';
                     <label>Choose File</label>
                     <input type="file" name="doc" class="form-control" required>
                 </div>
-                <button type="submit" class="btn">Upload to Vault</button>
+                <button type="submit" class="btn">Upload to My Docs</button>
             </form>
         </div>
         <div class="card">
@@ -547,7 +574,7 @@ require_once '../../includes/header.php';
                         <div style="display:flex; justify-content:center; gap:10px; margin-top:5px;">
                             <a href="<?php echo BASE_URL . $d['file_path']; ?>" target="_blank" style="font-size:11px;">View</a>
                             <?php if (!hasRole('student')): ?>
-                                <a href="?id=<?php echo $student_id; ?>&tab=vault&delete_doc=<?php echo $d['id']; ?>"
+                                <a href="?id=<?php echo $student_id; ?>&tab=docs&delete_doc=<?php echo $d['id']; ?>"
                                     style="color:red; font-size:11px;" onclick="return confirm('Delete?')">Del</a>
                             <?php endif; ?>
                         </div>
@@ -592,21 +619,23 @@ require_once '../../includes/header.php';
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
-            <div class="card">
-                <h4>Enroll in Batch</h4>
-                <form method="POST">
-                    <input type="hidden" name="enroll_class" value="1">
-                    <select name="class_id" class="form-control" style="margin-bottom:10px;">
-                        <option value="">Select Batch...</option>
-                        <?php foreach ($all_classes as $ac): ?>
-                            <option value="<?php echo $ac['id']; ?>">
-                                <?php echo htmlspecialchars($ac['course_name'] . ' - ' . $ac['class_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <button type="submit" class="btn">Enroll Student</button>
-                </form>
-            </div>
+            <?php if (!hasRole('student')): ?>
+                <div class="card">
+                    <h4>Enroll in Batch</h4>
+                    <form method="POST">
+                        <input type="hidden" name="enroll_class" value="1">
+                        <select name="class_id" class="form-control" style="margin-bottom:10px;">
+                            <option value="">Select Batch...</option>
+                            <?php foreach ($all_classes as $ac): ?>
+                                <option value="<?php echo $ac['id']; ?>">
+                                    <?php echo htmlspecialchars($ac['course_name'] . ' - ' . $ac['class_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" class="btn">Enroll Student</button>
+                    </form>
+                </div>
+            <?php endif; ?>
             <div class="card">
                 <h4>Active Batches</h4>
                 <?php if (count($my_classes) > 0): ?>
@@ -615,21 +644,31 @@ require_once '../../includes/header.php';
                         if ($mc['total_days'] > 0) {
                             $class_attn = (($mc['present_days'] + ($mc['late_days'] * 0.5)) / $mc['total_days']) * 100;
                         }
+                        $is_selected = ($class_filter == $mc['class_id']);
+                        $filter_url = "?id=$student_id&tab=classes&class_filter=" . ($is_selected ? '' : $mc['class_id']);
                         ?>
-                        <div
-                            style="margin-bottom:12px; padding:12px; background:#f8fafc; border: 1px solid #e2e8f0; border-radius:8px;">
+                        <div style="margin-bottom:12px; padding:12px; background: <?php echo $is_selected ? '#f0f9ff' : '#f8fafc'; ?>; border: 1px solid <?php echo $is_selected ? 'var(--primary-color)' : '#e2e8f0'; ?>; border-radius:8px; cursor: pointer; transition: all 0.2s;"
+                            onclick="window.location.href='<?php echo $filter_url; ?>'">
                             <div style="display:flex; justify-content:space-between; align-items: flex-start; margin-bottom: 8px;">
                                 <span>
                                     <strong
                                         style="color: #64748b; font-size: 11px; text-transform: uppercase;"><?php echo htmlspecialchars($mc['course_name']); ?></strong><br>
-                                    <a href="enrollment_details.php?student_id=<?php echo $student_id; ?>&class_id=<?php echo $mc['class_id']; ?>"
-                                        style="color: var(--primary-color); text-decoration: none; font-weight: bold; font-size: 15px;">
+                                    <div style="color: var(--primary-color); font-weight: bold; font-size: 15px;">
                                         <?php echo htmlspecialchars($mc['class_name']); ?>
-                                    </a>
+                                        <?php if ($is_selected): ?>
+                                            <span
+                                                style="font-size: 11px; background: var(--primary-color); color: white; padding: 2px 5px; border-radius: 4px; margin-left: 5px;">Selected</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </span>
-                                <a href="?id=<?php echo $student_id; ?>&tab=classes&unenroll=<?php echo $mc['class_id']; ?>"
-                                    style="color:#cbd5e1; text-decoration:none; font-size: 20px; line-height: 1;"
-                                    onclick="return confirm('Remove student from this class?')">×</a>
+                                <div style="display: flex; gap: 5px;">
+                                    <a href="enrollment_details.php?student_id=<?php echo $student_id; ?>&class_id=<?php echo $mc['class_id']; ?>"
+                                        title="Full Details" style="text-decoration:none; font-size: 14px;"
+                                        onclick="event.stopPropagation()">ℹ️</a>
+                                    <a href="?id=<?php echo $student_id; ?>&tab=classes&unenroll=<?php echo $mc['class_id']; ?>"
+                                        style="color:#cbd5e1; text-decoration:none; font-size: 20px; line-height: 1;"
+                                        onclick="event.stopPropagation(); return confirm('Remove student from this class?')">×</a>
+                                </div>
                             </div>
 
                             <div
@@ -652,108 +691,66 @@ require_once '../../includes/header.php';
             </div>
         </div>
         <div>
-            <div class="card">
-                <h4>Record Test Score</h4>
-                <form method="POST">
-                    <input type="hidden" name="add_score" value="1">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:10px;">
-                        <select name="test_type" class="form-control">
-                            <option value="IELTS">IELTS</option>
-                            <option value="PTE">PTE</option>
-                            <option value="SAT">SAT</option>
-                        </select>
-                        <input type="number" step="0.1" name="overall" class="form-control" placeholder="Overall Score"
-                            required>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px;">
-                        <input type="number" step="0.1" name="listening" class="form-control" placeholder="L">
-                        <input type="number" step="0.1" name="reading" class="form-control" placeholder="R">
-                        <input type="number" step="0.1" name="writing" class="form-control" placeholder="W">
-                        <input type="number" step="0.1" name="speaking" class="form-control" placeholder="S">
-                    </div>
-                    <button type="submit" class="btn">Save Score</button>
-                </form>
-            </div>
-            <div class="card">
-                <h4>Score History</h4>
-                <?php if (count($my_scores) > 0): ?>
-                    <?php foreach ($my_scores as $ms): ?>
-                        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding:5px 0;">
-                            <span>
-                                <strong><?php echo htmlspecialchars($ms['test_type']); ?>:
-                                    <?php echo htmlspecialchars($ms['overall_score']); ?></strong>
-                                <br><small
-                                    style="color: #666;"><?php echo $ms['listening'] . '/' . $ms['reading'] . '/' . $ms['writing'] . '/' . $ms['speaking']; ?></small>
-                            </span>
-                            <a href="?id=<?php echo $student_id; ?>&tab=classes&delete_score=<?php echo $ms['id']; ?>"
-                                style="color:red;" onclick="return confirm('Delete score?')">×</a>
+            <?php if (!hasRole('student')): ?>
+                <div class="card">
+                    <h4>Record Test Score</h4>
+                    <form method="POST">
+                        <input type="hidden" name="add_score" value="1">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:10px;">
+                            <select name="test_type" class="form-control">
+                                <option value="IELTS">IELTS</option>
+                                <option value="PTE">PTE</option>
+                                <option value="SAT">SAT</option>
+                            </select>
+                            <input type="number" step="0.1" name="overall" class="form-control" placeholder="Overall Score"
+                                required>
                         </div>
-                    <?php endforeach; ?>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px;">
+                            <input type="number" step="0.1" name="listening" class="form-control" placeholder="L">
+                            <input type="number" step="0.1" name="reading" class="form-control" placeholder="R">
+                            <input type="number" step="0.1" name="writing" class="form-control" placeholder="W">
+                            <input type="number" step="0.1" name="speaking" class="form-control" placeholder="S">
+                        </div>
+                        <button type="submit" class="btn">Save Score</button>
+                    </form>
+                </div>
+            <?php endif; ?>
+            <div class="card">
+                <h4>Daily Performance</h4>
+                <?php if (count($daily_logs) > 0): ?>
+                    <table style="width:100%; font-size:12px; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom:2px solid #e2e8f0; color:#64748b;">
+                                <th style="text-align:left; padding:5px;">Date</th>
+                                <th style="text-align:center; padding:5px;">CT</th>
+                                <th style="text-align:center; padding:5px;">HT</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($daily_logs as $log): ?>
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:8px 5px;">
+                                        <strong><?php echo date('M d', strtotime($log['roster_date'])); ?></strong><br>
+                                        <small style="color:#94a3b8;"><?php echo htmlspecialchars($log['class_name']); ?></small>
+                                    </td>
+                                    <td style="text-align:center; padding:8px 5px; font-weight:bold; color:#3b82f6;">
+                                        <?php echo $log['class_task_mark']; ?>
+                                    </td>
+                                    <td style="text-align:center; padding:8px 5px; font-weight:bold; color:#8b5cf6;">
+                                        <?php echo $log['home_task_mark']; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 <?php else: ?>
-                    <p style="color: #666; font-size: 13px;">No scores recorded.</p>
+                    <p style="color: #666; font-size: 13px;">No daily records.</p>
                 <?php endif; ?>
             </div>
         </div>
     </div>
 
-    <!-- Daily Performance Log Section -->
-    <div class="card" style="margin-top: 25px;">
-        <h3>Daily Performance Log</h3>
-        <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                <thead>
-                    <tr style="background: #f8fafc; text-align: left;">
-                        <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Date</th>
-                        <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Class / Topic</th>
-                        <th style="padding: 10px; border-bottom: 2px solid #e2e8f0; text-align: center;">Attendance</th>
-                        <th style="padding: 10px; border-bottom: 2px solid #e2e8f0; text-align: center;">Class Task</th>
-                        <th style="padding: 10px; border-bottom: 2px solid #e2e8f0; text-align: center;">Home Task</th>
-                        <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Remarks</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (count($daily_logs) > 0): ?>
-                        <?php foreach ($daily_logs as $log): ?>
-                            <tr>
-                                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">
-                                    <?php echo date('M d, Y', strtotime($log['roster_date'])); ?>
-                                </td>
-                                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">
-                                    <strong><?php echo htmlspecialchars($log['class_name']); ?></strong><br>
-                                    <small
-                                        style="color:#64748b; font-size: 11px;"><?php echo htmlspecialchars($log['topic'] ?: 'No topic'); ?></small>
-                                </td>
-                                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">
-                                    <?php
-                                    $att_colors = ['present' => '#dcfce7', 'absent' => '#fee2e2', 'late' => '#fef3c7'];
-                                    $bg = $att_colors[$log['attendance']] ?? '#f1f5f9';
-                                    ?>
-                                    <span
-                                        style="background: <?php echo $bg; ?>; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform: uppercase;">
-                                        <?php echo $log['attendance']; ?>
-                                    </span>
-                                </td>
-                                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: bold;">
-                                    <?php echo $log['class_task_mark']; ?>
-                                </td>
-                                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: bold;">
-                                    <?php echo $log['home_task_mark']; ?>
-                                </td>
-                                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
-                                    <?php echo htmlspecialchars($log['remarks']); ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="6" style="padding:20px; text-align:center; color:#666;">No daily performance records
-                                found.</td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
+
 
 <?php elseif ($tab === 'visa'): ?>
     <div style="max-width: 800px; margin: 0 auto;">
@@ -835,22 +832,24 @@ require_once '../../includes/header.php';
     </div>
 
 <?php elseif ($tab === 'logs'): ?>
-    <div class="card" style="background:#fffbeb; border:1px dashed #fcd34d;">
-        <h4>Add Communication Log</h4>
-        <form method="POST">
-            <input type="hidden" name="add_log" value="1">
-            <div style="display:flex; gap:10px;">
-                <select name="type" class="form-control" style="width:120px;">
-                    <option value="call">📞 Call</option>
-                    <option value="email">📧 Email</option>
-                    <option value="note">📝 Note</option>
-                    <option value="meeting">👥 Meeting</option>
-                </select>
-                <input type="text" name="message" class="form-control" placeholder="Details..." required>
-                <button type="submit" class="btn">Log Activity</button>
-            </div>
-        </form>
-    </div>
+    <?php if (!hasRole('student')): ?>
+        <div class="card" style="background:#fffbeb; border:1px dashed #fcd34d;">
+            <h4>Add Communication Log</h4>
+            <form method="POST">
+                <input type="hidden" name="add_log" value="1">
+                <div style="display:flex; gap:10px;">
+                    <select name="type" class="form-control" style="width:120px;">
+                        <option value="call">📞 Call</option>
+                        <option value="email">📧 Email</option>
+                        <option value="note">📝 Note</option>
+                        <option value="meeting">👥 Meeting</option>
+                    </select>
+                    <input type="text" name="message" class="form-control" placeholder="Details..." required>
+                    <button type="submit" class="btn">Log Activity</button>
+                </div>
+            </form>
+        </div>
+    <?php endif; ?>
     <h3 style="margin-top: 25px;">Timeline</h3>
     <?php if (count($timelines) > 0): ?>
         <?php foreach ($timelines as $log): ?>
