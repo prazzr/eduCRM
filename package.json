@@ -1,0 +1,24 @@
+{
+  "name": "crm",
+  "version": "1.0.0",
+  "description": "eduCRM — a small CRM for educational institutions.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/prazzr/eduCRM.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/prazzr/eduCRM/issues"
+  },
+  "homepage": "https://github.com/prazzr/eduCRM#readme",
+  "devDependencies": {
+    "tailwindcss": "^4.1.18"
+  }
+}

@@ -1,0 +1,18 @@
+# Protect uploads directory
+<Files *>
+    # Deny access to PHP files
+    <FilesMatch "\.php$">
+        Deny from all
+    </FilesMatch>
+    
+    # Allow only specific file types
+    <FilesMatch "\.(jpg|jpeg|png|gif|pdf|doc|docx|xls|xlsx)$">
+        Allow from all
+    </FilesMatch>
+</Files>
+
+# Disable directory listing
+Options -Indexes
+
+# Prevent execution of scripts
+php_flag engine off

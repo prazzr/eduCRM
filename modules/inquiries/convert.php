@@ -56,6 +56,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->commit();
 
+            // Send Welcome Email
+            require_once '../../includes/services/EmailService.php';
+            $emailService = new EmailService();
+            $emailService->sendWelcomeEmail([
+                'name' => $name,
+                'email' => $email
+            ], $raw_password);
+
             // Show password once before redirect
             $success_msg = "Successfully converted! Generated Password: <strong>$raw_password</strong> (Please copy this now)";
             $success_msg .= "<br><br><a href='../students/profile.php?id=$user_id' class='btn btn-secondary'>View Student Profile &raquo;</a>";

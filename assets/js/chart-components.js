@@ -1,0 +1,234 @@
+/**
+ * Chart.js Component Library
+ * Enhanced chart components for data visualization
+ */
+
+class ChartComponents {
+    /**
+     * Create area chart configuration
+     */
+    static createAreaChart(labels, datasets, options = {}) {
+        return {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets.map(ds => ({
+                    ...ds,
+                    fill: true,
+                    tension: 0.4,
+                    backgroundColor: ds.backgroundColor || 'rgba(59, 130, 246, 0.1)',
+                    borderColor: ds.borderColor || 'rgb(59, 130, 246)'
+                }))
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: options.showLegend !== false },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, stacked: options.stacked || false },
+                    x: { stacked: options.stacked || false }
+                },
+                ...options
+            }
+        };
+    }
+
+    /**
+     * Create pie/doughnut chart configuration
+     */
+    static createPieChart(labels, data, options = {}) {
+        return {
+            type: options.doughnut ? 'doughnut' : 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: options.colors || [
+                        'rgba(59, 130, 246, 0.8)',
+                        'rgba(16, 185, 129, 0.8)',
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(239, 68, 68, 0.8)',
+                        'rgba(168, 85, 247, 0.8)',
+                        'rgba(236, 72, 153, 0.8)'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: options.legendPosition || 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+                ...options
+            }
+        };
+    }
+
+    /**
+     * Create heatmap chart configuration (using matrix chart)
+     */
+    static createHeatmap(data, options = {}) {
+        return {
+            type: 'matrix',
+            data: {
+                datasets: [{
+                    label: options.label || 'Activity',
+                    data: data,
+                    backgroundColor(context) {
+                        const value = context.dataset.data[context.dataIndex].v;
+                        const alpha = value / (options.maxValue || 100);
+                        return `rgba(59, 130, 246, ${alpha})`;
+                    },
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    width: ({ chart }) => (chart.chartArea || {}).width / (options.columns || 7) - 1,
+                    height: ({ chart }) => (chart.chartArea || {}).height / (options.rows || 24) - 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title() { return ''; },
+                            label(context) {
+                                const v = context.dataset.data[context.dataIndex];
+                                return `${v.x}, ${v.y}: ${v.v}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { type: 'category', labels: options.xLabels || [], offset: true },
+                    y: { type: 'category', labels: options.yLabels || [], offset: true }
+                },
+                ...options
+            }
+        };
+    }
+
+    /**
+     * Create multi-axis chart
+     */
+    static createMultiAxisChart(labels, datasets, options = {}) {
+        return {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets.map((ds, index) => ({
+                    ...ds,
+                    yAxisID: ds.yAxisID || `y${index}`,
+                    tension: 0.4
+                }))
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    ...datasets.reduce((acc, ds, index) => {
+                        const axisId = ds.yAxisID || `y${index}`;
+                        acc[axisId] = {
+                            type: 'linear',
+                            display: true,
+                            position: index % 2 === 0 ? 'left' : 'right',
+                            title: { display: true, text: ds.label }
+                        };
+                        return acc;
+                    }, {})
+                },
+                ...options
+            }
+        };
+    }
+
+    /**
+     * Create radar chart
+     */
+    static createRadarChart(labels, datasets, options = {}) {
+        return {
+            type: 'radar',
+            data: {
+                labels: labels,
+                datasets: datasets.map(ds => ({
+                    ...ds,
+                    fill: true,
+                    backgroundColor: ds.backgroundColor || 'rgba(59, 130, 246, 0.2)',
+                    borderColor: ds.borderColor || 'rgb(59, 130, 246)',
+                    pointBackgroundColor: ds.borderColor || 'rgb(59, 130, 246)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: ds.borderColor || 'rgb(59, 130, 246)'
+                }))
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                elements: {
+                    line: { borderWidth: 3 }
+                },
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        ticks: { backdropColor: 'transparent' }
+                    }
+                },
+                ...options
+            }
+        };
+    }
+
+    /**
+     * Create stacked bar chart
+     */
+    static createStackedBarChart(labels, datasets, options = {}) {
+        return {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true }
+                },
+                ...options
+            }
+        };
+    }
+}
+
+// Export for use in modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = ChartComponents;
+}

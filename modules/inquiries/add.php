@@ -1,5 +1,6 @@
 <?php
 require_once '../../config.php';
+require_once '../../includes/services/LeadScoringService.php';
 requireLogin();
 
 // Only Admin/Counselor
@@ -21,7 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $stmt = $pdo->prepare("INSERT INTO inquiries (name, email, phone, intended_country, intended_course, education_level, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$name, $email, $phone, $country, $course, $edu_level, $assigned_to]);
-            redirectWithAlert("list.php", "Inquiry added successfully!");
+
+            // Phase 1: Auto-score the new inquiry
+            $inquiryId = $pdo->lastInsertId();
+            $leadScoringService = new LeadScoringService($pdo);
+            $leadScoringService->updateInquiryScore($inquiryId);
+
+            redirectWithAlert("list.php", "Inquiry added and scored successfully!");
         } catch (PDOException $e) {
             $error = "Error adding inquiry: " . $e->getMessage();
         }

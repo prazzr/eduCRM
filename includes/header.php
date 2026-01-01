@@ -6,89 +6,102 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($pageDetails['title']) ? $pageDetails['title'] . ' - Education CRM' : 'Education CRM'; ?>
     </title>
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
-    <style>
-        .notify-badge {
-            background: red;
-            color: white;
-            border-radius: 50%;
-            padding: 2px 6px;
-            font-size: 10px;
-            position: absolute;
-            top: 10px;
-            right: 10px;
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Priority Styles -->
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/priority.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        },
+                        surface: '#ffffff',
+                        background: '#f8fafc',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
         }
-    </style>
+    </script>
 </head>
 
-<body>
+<body class="bg-slate-50 text-slate-900 font-sans">
 
     <?php
     if (isLoggedIn()):
-        require_once 'notifications.php'; // Include helper
-        $my_notifs = getNotifications($_SESSION['user_id']);
+        require_once 'services/NavigationService.php';
+        require_once 'services/NotificationService.php';
+
+        // Notification Logic
+        $notifService = new NotificationService($pdo, $_SESSION['user_id']);
+        if (isset($_GET['mark_read'])) {
+            $notifService->markAllRead();
+            $redirect = strtok($_SERVER["REQUEST_URI"], '?');
+            header("Location: $redirect");
+            exit;
+        }
+        $my_notifs = $notifService->getUnread();
+
+        // Navigation Logic
+        $menuItems = NavigationService::getMenuItems($_SESSION['role']);
         ?>
-        <nav class="navbar">
-            <div class="logo">EduCRM</div>
-            <div class="nav-links">
-                <a href="<?php echo BASE_URL; ?>">Dashboard</a>
+        <nav class="bg-white border-b border-slate-200 h-16 px-6 flex items-center justify-between sticky top-0 z-50">
+            <div class="text-xl font-bold text-primary-600 tracking-tight">EduCRM</div>
+            <div class="flex items-center gap-6 text-sm font-medium text-slate-600">
+                <?php foreach ($menuItems as $item): ?>
+                    <a href="<?php echo htmlspecialchars($item['url']); ?>" class="hover:text-primary-600 transition-colors">
+                        <?php echo htmlspecialchars($item['label']); ?>
+                    </a>
+                <?php endforeach; ?>
 
-                <?php if (hasRole('admin') || hasRole('counselor')): ?>
-                    <a href="<?php echo BASE_URL; ?>modules/inquiries/list.php">Inquiries</a>
-                    <a href="<?php echo BASE_URL; ?>modules/students/list.php">Students</a>
-                    <a href="<?php echo BASE_URL; ?>modules/applications/tracker.php">Apps Tracker</a>
-                    <a href="<?php echo BASE_URL; ?>modules/visa/list.php">Visa Tracking</a>
-                    <a href="<?php echo BASE_URL; ?>modules/partners/list.php">Partners</a>
-                <?php endif; ?>
-
-                <?php if (hasRole('admin')): ?>
-                    <a href="<?php echo BASE_URL; ?>modules/users/list.php">Users</a>
-                <?php endif; ?>
-
-                <?php if (hasRole('admin') || hasRole('teacher') || hasRole('student')): ?>
-                    <a href="<?php echo BASE_URL; ?>modules/lms/classes.php">Classes</a>
-                <?php endif; ?>
-
-                <?php if (hasRole('admin') || hasRole('teacher')): ?>
-                    <a href="<?php echo BASE_URL; ?>modules/lms/courses.php">LMS</a>
-                <?php endif; ?>
-
-                <?php if (hasRole('admin') || hasRole('accountant')): ?>
-                    <a href="<?php echo BASE_URL; ?>modules/accounting/ledger.php">Accounting</a>
-                <?php endif; ?>
-
-                <?php if (hasRole('student')): ?>
-                    <a href="<?php echo BASE_URL; ?>modules/students/profile.php?id=<?php echo $_SESSION['user_id']; ?>">My
-                        Profile</a>
-                <?php endif; ?>
-
-                <!-- Notifications Dropdown (Simplified as link for now) -->
-                <a href="?mark_read=1" style="position: relative;">
-                    🔔
+                <!-- Notifications -->
+                <a href="?mark_read=1" class="relative group">
+                    <span class="text-lg">🔔</span>
                     <?php if (count($my_notifs) > 0): ?>
-                        <span class="notify-badge"><?php echo count($my_notifs); ?></span>
+                        <span
+                            class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full"><?php echo count($my_notifs); ?></span>
                     <?php endif; ?>
                 </a>
 
-                <a href="<?php echo BASE_URL; ?>modules/users/change_password.php"
-                    style="font-size: 13px; margin-right: 10px;">Change Password</a>
+                <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
+                    <a href="<?php echo BASE_URL; ?>modules/users/change_password.php"
+                        class="text-xs text-slate-500 hover:text-slate-800">Change Password</a>
 
-                <a href="<?php echo BASE_URL; ?>logout.php" class="btn btn-secondary"
-                    style="padding: 5px 15px; font-size: 13px;">Logout</a>
+                    <a href="<?php echo BASE_URL; ?>logout.php"
+                        class="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs rounded hover:bg-slate-200 transition-colors">Logout</a>
+                </div>
             </div>
         </nav>
 
         <?php if (count($my_notifs) > 0): ?>
-            <div
-                style="background: #fff; border-bottom: 1px solid #ddd; padding: 10px; text-align: center; font-size: 14px; color: #444;">
-                Pending Alerts:
+            <div class="bg-white border-b border-slate-200 px-4 py-2 text-center text-sm text-slate-600">
+                <span class="font-semibold text-primary-600">Alerts:</span>
                 <?php foreach ($my_notifs as $n): ?>
-                    <span style="margin: 0 10px;">• <?php echo htmlspecialchars($n['message']); ?></span>
+                    <span class="mx-2">• <?php echo htmlspecialchars($n['message']); ?></span>
                 <?php endforeach; ?>
-                <a href="?mark_read=1" style="color: blue; font-size: 12px;">(Dismiss)</a>
+                <a href="?mark_read=1" class="text-blue-600 hover:underline text-xs ml-2">(Dismiss)</a>
+            </div>
+        <?php endif; ?>
+
+        <!-- Quick Actions Bar -->
+        <?php if (hasRole('admin') || hasRole('counselor')): ?>
+            <div class="quick-actions-bar">
+                <a href="<?php echo BASE_URL; ?>modules/inquiries/add.php" class="btn-primary">+ New Inquiry</a>
+                <a href="<?php echo BASE_URL; ?>modules/tasks/add.php" class="btn-primary">+ New Task</a>
+                <a href="<?php echo BASE_URL; ?>modules/appointments/add.php" class="btn-primary">+ New Appointment</a>
+                <input type="search" placeholder="Quick search..." class="quick-search" id="globalQuickSearch">
             </div>
         <?php endif; ?>
 
     <?php endif; ?>
 
-    <div class="container">
+    <div class="max-w-7xl mx-auto p-6">

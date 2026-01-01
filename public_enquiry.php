@@ -21,6 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $stmt = $pdo->prepare("INSERT INTO inquiries (name, email, phone, intended_country, intended_course, education_level, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$name, $email, $phone, $country, $course, $edu_level, $assigned_to]);
+
+            // Send Email Receipt
+            require_once 'includes/services/EmailService.php';
+            $emailService = new EmailService();
+            $emailService->sendInquiryReceipt($email, $name);
+
             $message = "Thank you! Your inquiry has been received. We will contact you shortly.";
         } catch (PDOException $e) {
             $error = "Error: " . $e->getMessage();

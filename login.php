@@ -33,65 +33,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Education CRM</title>
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
-    <style>
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
+<title>Login - Education CRM</title>
+<!-- Tailwind CSS via CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    primary: {
+                        50: '#eef2ff',
+                        100: '#e0e7ff',
+                        500: '#6366f1',
+                        600: '#4f46e5',
+                        700: '#4338ca',
+                    },
+                    surface: '#ffffff',
+                    background: '#f8fafc',
+                },
+                fontFamily: {
+                    sans: ['Inter', 'sans-serif'],
+                }
+            }
         }
-
-        .login-card {
-            width: 100%;
-            max-width: 400px;
-            padding: 40px;
-        }
-
-        .login-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .login-header h1 {
-            font-size: 24px;
-            color: var(--primary-color);
-        }
-    </style>
+    }
+</script>
 </head>
 
-<body>
+<body class="bg-slate-50 flex items-center justify-center min-h-screen">
 
-    <div class="card login-card">
-        <div class="login-header">
-            <h1>EduCRM Login</h1>
-            <p>Please sign in to continue</p>
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-primary-600 mb-2">EduCRM</h1>
+            <p class="text-slate-500">Please sign in to continue</p>
         </div>
 
         <?php if ($error): ?>
-            <div
-                style="background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 6px; margin-bottom: 20px; text-align: center;">
+            <div class="bg-red-50 text-red-700 p-3 rounded-lg mb-6 text-center text-sm font-medium border border-red-100">
                 <?php echo $error; ?>
             </div>
         <?php endif; ?>
 
-        <form method="POST">
-            <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" name="email" class="form-control" required>
+        <form method="POST" class="space-y-5">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                <input type="email" name="email"
+                    class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                    required>
             </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" name="password" class="form-control" required>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                <input type="password" name="password"
+                    class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                    required>
             </div>
-            <button type="submit" class="btn" style="width: 100%;">Sign In</button>
+            <button type="submit"
+                class="w-full bg-primary-600 text-white font-medium py-2.5 rounded-lg hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30">
+                Sign In
+            </button>
         </form>
 
-        <div style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary);">
+        <div class="text-center mt-6 text-xs text-slate-400">
             <p>Default Admin: admin@example.com / password</p>
         </div>
     </div>
