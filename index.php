@@ -7,7 +7,7 @@ $pageDetails = ['title' => 'Dashboard'];
 require_once 'templates/header.php';
 
 // Initialize Service
-$dashboardService = new \EduCRM\Services\DashboardService($pdo, $_SESSION['user_id'], $_SESSION['role']);
+$dashboardService = new \EduCRM\Services\DashboardService($pdo, $_SESSION['user_id'], $_SESSION['role'] ?? 'guest');
 
 // Fetch Data
 $newInquiries = $dashboardService->getNewInquiriesCount();

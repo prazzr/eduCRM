@@ -49,7 +49,7 @@
         $notifications = $notifService->getUnread();
 
         // Navigation
-        $menuGroups = \EduCRM\Services\NavigationService::getGroupedMenuItems($_SESSION['role']);
+        $menuGroups = \EduCRM\Services\NavigationService::getGroupedMenuItems($_SESSION['role'] ?? 'guest');
         $currentPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         $userInitials = strtoupper(substr($_SESSION['user_name'] ?? $_SESSION['name'] ?? 'U', 0, 2));
         ?>
