@@ -110,8 +110,8 @@ class EmailNotificationService
             return false;
         }
 
-        $subject = "New Task Assigned: " . $task['title'];
-        $body = $this->renderTemplate('task_assignment', [
+        $defaultSubject = "New Task Assigned: " . $task['title'];
+        $result = $this->renderTemplate('task_assignment', [
             'name' => $task['assigned_name'],
             'task_title' => $task['title'],
             'task_description' => $task['description'],
@@ -119,6 +119,10 @@ class EmailNotificationService
             'due_date' => $task['due_date'] ? date('M d, Y', strtotime($task['due_date'])) : 'No due date',
             'task_url' => BASE_URL . 'modules/tasks/edit.php?id=' . $taskId
         ]);
+
+        // Handle array return (subject + body) or string (body only - legacy backup)
+        $body = is_array($result) ? $result['body'] : $result;
+        $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
 
         return $this->queueEmail($task['assigned_email'], $task['assigned_name'], $subject, $body, 'task_assignment');
     }
@@ -153,16 +157,20 @@ class EmailNotificationService
         if ($appointment['counselor_email'] && $this->isNotificationEnabled($appointment['counselor_id'], 'appointment_reminder')) {
             $clientName = $appointment['student_name'] ?? $appointment['inquiry_name'] ?? 'Client';
 
-            $subject = "Appointment Reminder: " . $appointment['title'];
-            $body = $this->renderTemplate('appointment_reminder', [
+            $defaultSubject = "Appointment Reminder: " . $appointment['title'];
+            $result = $this->renderTemplate('appointment_reminder', [
                 'name' => $appointment['counselor_name'],
                 'appointment_title' => $appointment['title'],
                 'client_name' => $clientName,
                 'appointment_date' => date('M d, Y \a\t h:i A', strtotime($appointment['appointment_date'])),
                 'location' => $appointment['location'] ?? 'Not specified',
+                'meeting_link_section' => $appointment['meeting_link'] ? "<p style='margin: 5px 0;'><strong>Meeting Link:</strong> <a href='" . $appointment['meeting_link'] . "'>" . $appointment['meeting_link'] . "</a></p>" : "",
                 'meeting_link' => $appointment['meeting_link'],
                 'appointment_url' => BASE_URL . 'modules/appointments/edit.php?id=' . $appointmentId
             ]);
+
+            $body = is_array($result) ? $result['body'] : $result;
+            $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
 
             $sent = $this->queueEmail($appointment['counselor_email'], $appointment['counselor_name'], $subject, $body, 'appointment_reminder');
         }
@@ -172,15 +180,19 @@ class EmailNotificationService
         if ($clientEmail) {
             $clientName = $appointment['student_name'] ?? $appointment['inquiry_name'];
 
-            $subject = "Appointment Reminder: " . $appointment['title'];
-            $body = $this->renderTemplate('appointment_reminder_client', [
+            $defaultSubject = "Appointment Reminder: " . $appointment['title'];
+            $result = $this->renderTemplate('appointment_reminder_client', [
                 'name' => $clientName,
                 'appointment_title' => $appointment['title'],
                 'counselor_name' => $appointment['counselor_name'],
                 'appointment_date' => date('M d, Y \a\t h:i A', strtotime($appointment['appointment_date'])),
                 'location' => $appointment['location'] ?? 'Not specified',
+                'meeting_link_section' => $appointment['meeting_link'] ? "<p style='margin: 5px 0;'><strong>Meeting Link:</strong> <a href='" . $appointment['meeting_link'] . "'>" . $appointment['meeting_link'] . "</a></p>" : "",
                 'meeting_link' => $appointment['meeting_link']
             ]);
+
+            $body = is_array($result) ? $result['body'] : $result;
+            $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
 
             $this->queueEmail($clientEmail, $clientName, $subject, $body, 'appointment_reminder_client');
         }
@@ -217,8 +229,8 @@ class EmailNotificationService
 
         $daysOverdue = floor((time() - strtotime($task['due_date'])) / 86400);
 
-        $subject = "Overdue Task Alert: " . $task['title'];
-        $body = $this->renderTemplate('task_overdue', [
+        $defaultSubject = "Overdue Task Alert: " . $task['title'];
+        $result = $this->renderTemplate('task_overdue', [
             'name' => $task['assigned_name'],
             'task_title' => $task['title'],
             'days_overdue' => $daysOverdue,
@@ -226,6 +238,9 @@ class EmailNotificationService
             'priority' => $task['priority'],
             'task_url' => BASE_URL . 'modules/tasks/edit.php?id=' . $taskId
         ]);
+
+        $body = is_array($result) ? $result['body'] : $result;
+        $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
 
         return $this->queueEmail($task['assigned_email'], $task['assigned_name'], $subject, $body, 'task_overdue');
     }
@@ -243,13 +258,16 @@ class EmailNotificationService
             return false;
         }
 
-        $subject = "Welcome to EduCRM - Your Account Has Been Created";
-        $body = $this->renderTemplate('welcome', [
+        $defaultSubject = "Welcome to EduCRM - Your Account Has Been Created";
+        $result = $this->renderTemplate('welcome', [
             'name' => $user['name'],
             'email' => $user['email'],
             'password' => $plainPassword,
             'login_url' => BASE_URL . 'login.php'
         ]);
+
+        $body = is_array($result) ? $result['body'] : $result;
+        $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
 
         return $this->queueEmail($user['email'], $user['name'], $subject, $body, 'welcome');
     }
@@ -279,12 +297,15 @@ class EmailNotificationService
         }
         $changesHtml .= '</ul>';
 
-        $subject = "Your Profile Has Been Updated";
-        $body = $this->renderTemplate('profile_update', [
+        $defaultSubject = "Your Profile Has Been Updated";
+        $result = $this->renderTemplate('profile_update', [
             'name' => $user['name'],
             'changes' => $changesHtml,
             'profile_url' => BASE_URL . 'modules/users/profile.php'
         ]);
+
+        $body = is_array($result) ? $result['body'] : $result;
+        $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
 
         return $this->queueEmail($user['email'], $user['name'], $subject, $body, 'profile_update');
     }
@@ -320,8 +341,8 @@ class EmailNotificationService
             $stages[$row['id']] = $row['name'];
         }
 
-        $subject = "Visa Application Update - " . ($stages[$newStage] ?? 'Stage Changed');
-        $body = $this->renderTemplate('workflow_update', [
+        $defaultSubject = "Visa Application Update - " . ($stages[$newStage] ?? 'Stage Changed');
+        $result = $this->renderTemplate('workflow_update', [
             'name' => $workflow['name'],
             'application_title' => $workflow['country_name'] ? 'Visa for ' . $workflow['country_name'] : 'Your Visa Application',
             'old_stage' => $stages[$oldStage] ?? 'Previous Stage',
@@ -329,6 +350,9 @@ class EmailNotificationService
             'updated_at' => date('M d, Y h:i A'),
             'workflow_url' => BASE_URL . 'modules/visa/update.php?student_id=' . $workflow['student_id']
         ]);
+
+        $body = is_array($result) ? $result['body'] : $result;
+        $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
 
         return $this->queueEmail($workflow['email'], $workflow['name'], $subject, $body, 'workflow_update');
     }
@@ -368,8 +392,8 @@ class EmailNotificationService
         $remarksHtml = $remarks ? '<p style="margin: 10px 0 0 0;"><strong>Remarks:</strong> ' . htmlspecialchars($remarks) . '</p>' : '';
 
         $docName = $document['document_type_name'] ?? $document['original_filename'] ?? $document['title'] ?? 'Document';
-        $subject = "Document Status Update: " . $docName;
-        $body = $this->renderTemplate('document_update', [
+        $defaultSubject = "Document Status Update: " . $docName;
+        $result = $this->renderTemplate('document_update', [
             'name' => $document['name'],
             'document_name' => $docName,
             'status' => ucfirst(str_replace('_', ' ', $newStatus)),
@@ -377,6 +401,9 @@ class EmailNotificationService
             'remarks' => $remarksHtml,
             'documents_url' => BASE_URL . 'modules/visa/update.php?student_id=' . $document['student_id']
         ]);
+
+        $body = is_array($result) ? $result['body'] : $result;
+        $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
 
         return $this->queueEmail($document['email'], $document['name'], $subject, $body, 'document_update');
     }
@@ -411,8 +438,8 @@ class EmailNotificationService
         }
 
         $displayName = $enrollment['class_name'] ?? $enrollment['course_name'] ?? 'Class';
-        $subject = "Class Enrollment Confirmation: " . $displayName;
-        $body = $this->renderTemplate('enrollment', [
+        $defaultSubject = "Class Enrollment Confirmation: " . $displayName;
+        $result = $this->renderTemplate('enrollment', [
             'name' => $enrollment['student_name'],
             'course_name' => $displayName,
             'start_date' => $enrollment['start_date'] ? date('M d, Y', strtotime($enrollment['start_date'])) : 'TBD',
@@ -421,33 +448,115 @@ class EmailNotificationService
             'course_url' => BASE_URL . 'modules/lms/classroom.php?id=' . $enrollment['class_id']
         ]);
 
+        $body = is_array($result) ? $result['body'] : $result;
+        $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $defaultSubject;
+
         return $this->queueEmail($enrollment['student_email'], $enrollment['student_name'], $subject, $body, 'enrollment');
     }
 
     /**
      * Render email template
+     * Returns array ['subject' => string, 'body' => string]
      */
     private function renderTemplate($templateKey, $data)
     {
+        $subject = null;
+        $body = '';
+
         // Try to load from database first
         try {
-            $stmt = $this->pdo->prepare("SELECT body_html FROM email_templates WHERE template_key = ? AND is_active = 1");
+            $stmt = $this->pdo->prepare("SELECT subject, body_html FROM email_templates WHERE template_key = ? AND is_active = 1");
             $stmt->execute([$templateKey]);
             $dbTemplate = $stmt->fetch(\PDO::FETCH_ASSOC);
 
             if ($dbTemplate && !empty($dbTemplate['body_html'])) {
-                $template = $dbTemplate['body_html'];
-                foreach ($data as $key => $value) {
-                    $template = str_replace('{' . $key . '}', $value, $template);
-                }
-                return $template;
+                $body = $dbTemplate['body_html'];
+                $subject = $dbTemplate['subject'];
             }
         } catch (\PDOException $e) {
             // Table might not exist, fall through to hardcoded templates
         }
 
-        // Fallback to hardcoded templates
-        $templates = [
+        // Fallback to hardcoded templates if DB template missing
+        if (empty($body)) {
+            $templates = $this->getHardcodedTemplates();
+            $body = $templates[$templateKey] ?? '';
+        }
+
+        // Perform variable substitution
+        foreach ($data as $key => $value) {
+            $placeholder = '{' . $key . '}';
+            $body = str_replace($placeholder, $value, $body);
+            if ($subject) {
+                $subject = str_replace($placeholder, $value, $subject);
+            }
+        }
+
+        // Inline CSS (Simple regex-based approach to avoid dependencies)
+        $body = $this->inlineCss($body);
+
+        // Return array if subject exists (new format), or just string (legacy back-compat)
+        // ideally we always return array, but keeping string return for body-only calls might be safer
+        // wait, let's standardize on returning array internally, but methods calling this need to handle it.
+        return ['subject' => $subject, 'body' => $body];
+    }
+
+    /**
+     * Simple CSS Inliner
+     * Moves style block content to inline styles
+     */
+    private function inlineCss($html)
+    {
+        // Extract style blocks
+        preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $html, $matches);
+        $css = implode("\n", $matches[1]);
+
+        // If no CSS, return original
+        if (empty($css)) {
+            return $html;
+        }
+
+        // Remove style blocks from HTML
+        $html = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $html);
+
+        // Parse simple CSS rules (selector { property: value; })
+        preg_match_all('/([^{]+)\s*\{\s*([^}]+)\s*\}/', $css, $rules, PREG_SET_ORDER);
+
+        foreach ($rules as $rule) {
+            $selector = trim($rule[1]);
+            $style = trim($rule[2]);
+
+            // Skip complex selectors for this simple implementation
+            if (strpos($selector, ':') !== false || strpos($selector, '>') !== false) {
+                continue;
+            }
+
+            // Convert CSS classes to inline styles using DOMDocument if available, or simple str_replace
+            // Since we can't rely on DOMDocument being perfect with HTML5 snippets, let's try a safer regex approach for class names
+            if (strpos($selector, '.') === 0) {
+                $className = substr($selector, 1);
+                $html = preg_replace(
+                    '/class=["\']([^"\']*)\b' . preg_quote($className, '/') . '\b([^"\']*)["\']/',
+                    'class="$1' . $className . '$2" style="' . $style . '"',
+                    $html
+                );
+            }
+            // Tag selectors (e.g., p, h1)
+            elseif (ctype_alpha($selector)) {
+                $html = preg_replace(
+                    '/<' . $selector . '\b([^>]*)>/',
+                    '<' . $selector . ' style="' . $style . '" $1>',
+                    $html
+                );
+            }
+        }
+
+        return $html;
+    }
+
+    private function getHardcodedTemplates()
+    {
+        return [
             'task_assignment' => "
                 <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
                     <h2 style='color: #4f46e5;'>New Task Assigned</h2>
@@ -473,7 +582,7 @@ class EmailNotificationService
                         <p style='margin: 5px 0;'><strong>Client:</strong> {client_name}</p>
                         <p style='margin: 5px 0;'><strong>Date & Time:</strong> {appointment_date}</p>
                         <p style='margin: 5px 0;'><strong>Location:</strong> {location}</p>
-                        " . ($data['meeting_link'] ?? false ? "<p style='margin: 5px 0;'><strong>Meeting Link:</strong> <a href='{meeting_link}'>{meeting_link}</a></p>" : "") . "
+                        {meeting_link_section}
                     </div>
                     <p><a href='{appointment_url}' style='background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;'>View Appointment</a></p>
                     <p style='color: #64748b; font-size: 12px; margin-top: 30px;'>This is an automated reminder from EduCRM.</p>
@@ -488,7 +597,7 @@ class EmailNotificationService
                         <h3 style='margin: 0 0 10px 0;'>{appointment_title}</h3>
                         <p style='margin: 5px 0;'><strong>Date & Time:</strong> {appointment_date}</p>
                         <p style='margin: 5px 0;'><strong>Location:</strong> {location}</p>
-                        " . ($data['meeting_link'] ?? false ? "<p style='margin: 5px 0;'><strong>Meeting Link:</strong> <a href='{meeting_link}'>{meeting_link}</a></p>" : "") . "
+                         {meeting_link_section}
                     </div>
                     <p style='color: #64748b; font-size: 12px; margin-top: 30px;'>This is an automated reminder from EduCRM.</p>
                 </div>
@@ -579,15 +688,8 @@ class EmailNotificationService
                 </div>
             "
         ];
-
-        $template = $templates[$templateKey] ?? '';
-
-        foreach ($data as $key => $value) {
-            $template = str_replace('{' . $key . '}', $value, $template);
-        }
-
-        return $template;
     }
+
 
     /**
      * Process email queue (send pending emails)
