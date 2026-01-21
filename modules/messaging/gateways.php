@@ -1,63 +1,67 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/MessagingFactory.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 requireAdmin();
 
-MessagingFactory::init($pdo);
+\EduCRM\Services\MessagingFactory::init($pdo);
 
 // Handle gateway actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add_gateway') {
-        $config = [
-            'account_sid' => $_POST['account_sid'] ?? '',
-            'auth_token' => $_POST['auth_token'] ?? '',
-            'from_number' => $_POST['from_number'] ?? '',
-            'host' => $_POST['host'] ?? '',
-            'port' => $_POST['port'] ?? '',
-            'system_id' => $_POST['system_id'] ?? '',
-            'password' => $_POST['password'] ?? '',
-            'system_type' => $_POST['system_type'] ?? '',
-            'source_addr' => $_POST['source_addr'] ?? '',
-            'gammu_path' => $_POST['gammu_path'] ?? '',
-            'device' => $_POST['device'] ?? '',
-            'connection' => $_POST['connection'] ?? '',
-            'phone_number_id' => $_POST['phone_number_id'] ?? '',
-            'access_token' => $_POST['access_token'] ?? '',
-            'business_account_id' => $_POST['business_account_id'] ?? '',
-            'api_key' => $_POST['api_key'] ?? '',
-            'client_id' => $_POST['client_id'] ?? '',
-            'auth_token' => $_POST['auth_token'] ?? '',
-            'bot_name' => $_POST['bot_name'] ?? '',
-            'bot_avatar' => $_POST['bot_avatar'] ?? ''
-        ];
+        try {
+            $config = [
+                'account_sid' => $_POST['account_sid'] ?? '',
+                'auth_token' => $_POST['auth_token'] ?? '',
+                'from_number' => $_POST['from_number'] ?? '',
+                'host' => $_POST['host'] ?? '',
+                'port' => $_POST['port'] ?? '',
+                'system_id' => $_POST['system_id'] ?? '',
+                'password' => $_POST['password'] ?? '',
+                'system_type' => $_POST['system_type'] ?? '',
+                'source_addr' => $_POST['source_addr'] ?? '',
+                'gammu_path' => $_POST['gammu_path'] ?? '',
+                'device' => $_POST['device'] ?? '',
+                'connection' => $_POST['connection'] ?? '',
+                'phone_number_id' => $_POST['phone_number_id'] ?? '',
+                'access_token' => $_POST['access_token'] ?? '',
+                'business_account_id' => $_POST['business_account_id'] ?? '',
+                'api_key' => $_POST['api_key'] ?? '',
+                'client_id' => $_POST['client_id'] ?? '',
+                'auth_token' => $_POST['auth_token'] ?? '',
+                'bot_name' => $_POST['bot_name'] ?? '',
+                'bot_avatar' => $_POST['bot_avatar'] ?? '',
+                'url' => $_POST['url'] ?? '',
+                'topic_prefix' => $_POST['topic_prefix'] ?? '',
+                'default_country_code' => $_POST['default_country_code'] ?? '+1'
+            ];
 
-        // Remove empty values
-        $config = array_filter($config);
+            // Remove empty values
+            $config = array_filter($config);
 
-        $stmt = $pdo->prepare("
-            INSERT INTO messaging_gateways (name, type, provider, config, is_default, priority, daily_limit, cost_per_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ");
+            $stmt = $pdo->prepare("
+                INSERT INTO messaging_gateways (name, type, provider, config, is_default, priority, daily_limit, cost_per_message)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ");
 
-        $stmt->execute([
-            $_POST['name'],
-            $_POST['type'],
-            $_POST['provider'],
-            json_encode($config),
-            isset($_POST['is_default']) ? 1 : 0,
-            $_POST['priority'] ?? 0,
-            $_POST['daily_limit'] ?? 1000,
-            $_POST['cost_per_message'] ?? 0
-        ]);
+            $stmt->execute([
+                $_POST['name'],
+                $_POST['type'],
+                $_POST['provider'],
+                json_encode($config),
+                isset($_POST['is_default']) ? 1 : 0,
+                $_POST['priority'] ?? 0,
+                $_POST['daily_limit'] ?? 1000,
+                $_POST['cost_per_message'] ?? 0
+            ]);
 
-        $_SESSION['flash_message'] = 'Gateway added successfully';
-        $_SESSION['flash_type'] = 'success';
-        header('Location: gateways.php');
-        exit;
+            redirectWithAlert('gateways.php', 'Gateway added successfully', 'success');
+        } catch (Exception $e) {
+            redirectWithAlert('gateways.php', 'Error adding gateway: ' . $e->getMessage(), 'error');
+        }
     }
 }
 
@@ -66,114 +70,120 @@ $stmt = $pdo->query("SELECT * FROM messaging_gateways ORDER BY priority DESC, is
 $gateways = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $pageDetails = ['title' => 'Messaging Gateways'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
-<div class="mb-6 flex justify-between items-center">
+<div class="page-header">
     <div>
-        <h1 class="text-2xl font-bold text-slate-800">📡 Messaging Gateways</h1>
-        <p class="text-slate-600 mt-1">Configure SMS, WhatsApp, and Viber gateways</p>
+        <h1 class="page-title">Messaging Gateways</h1>
+        <p class="text-slate-500 mt-1 text-sm">Configure SMS, WhatsApp, and Viber gateways</p>
     </div>
-    <button onclick="showAddModal()" class="btn">+ Add Gateway</button>
+    <button onclick="showAddModal()" class="btn btn-primary">
+        <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Add Gateway
+    </button>
 </div>
 
 <?php renderFlashMessage(); ?>
 
-<!-- Gateways Grid -->
-<?php if (count($gateways) > 0): ?>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <?php foreach ($gateways as $gateway):
-            $config = json_decode($gateway['config'], true);
-            $icons = ['sms' => '📱', 'whatsapp' => '💬', 'viber' => '📞', 'email' => '📧'];
-            $icon = $icons[$gateway['type']] ?? '📡';
-
-            $providerNames = [
-                'twilio' => 'Twilio',
-                'smpp' => 'SMPP',
-                'gammu' => 'Gammu',
-                'twilio_whatsapp' => 'Twilio WhatsApp',
-                'whatsapp_business' => 'WhatsApp Business',
-                '360dialog' => '360Dialog',
-                'viber_bot' => 'Viber Bot'
-            ];
-            $providerName = $providerNames[$gateway['provider']] ?? $gateway['provider'];
-            ?>
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <div class="flex items-start justify-between mb-4">
-                    <div class="text-4xl">
-                        <?php echo $icon; ?>
-                    </div>
-                    <div class="flex gap-2">
-                        <?php if ($gateway['is_default']): ?>
-                            <span class="px-2 py-1 bg-primary-100 text-primary-700 text-xs font-medium rounded">Default</span>
-                        <?php endif; ?>
-                        <span
-                            class="px-2 py-1 <?php echo $gateway['is_active'] ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'; ?> text-xs font-medium rounded">
-                            <?php echo $gateway['is_active'] ? 'Active' : 'Inactive'; ?>
-                        </span>
-                    </div>
-                </div>
-
-                <h3 class="font-bold text-slate-800 mb-1">
-                    <?php echo htmlspecialchars($gateway['name']); ?>
-                </h3>
-                <p class="text-sm text-slate-600 mb-4">
-                    <?php echo $providerName; ?> • Priority:
-                    <?php echo $gateway['priority']; ?>
-                </p>
-
-                <div class="space-y-2 mb-4 text-sm">
-                    <div class="flex justify-between">
-                        <span class="text-slate-600">Daily Usage:</span>
-                        <span class="font-medium">
-                            <?php echo $gateway['daily_sent']; ?>/
-                            <?php echo $gateway['daily_limit']; ?>
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-slate-600">Total Sent:</span>
-                        <span class="font-medium">
-                            <?php echo number_format($gateway['total_sent']); ?>
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-slate-600">Cost/Message:</span>
-                        <span class="font-medium">$
-                            <?php echo number_format($gateway['cost_per_message'], 4); ?>
-                        </span>
-                    </div>
-                    <?php if ($gateway['last_used_at']): ?>
-                        <div class="flex justify-between">
-                            <span class="text-slate-600">Last Used:</span>
-                            <span class="font-medium">
-                                <?php echo date('M d, H:i', strtotime($gateway['last_used_at'])); ?>
-                            </span>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-                <div class="flex gap-2">
-                    <button onclick="testGateway(<?php echo $gateway['id']; ?>)"
-                        class="flex-1 btn-secondary px-3 py-2 text-xs rounded-lg">
-                        Test
-                    </button>
-                    <button
-                        onclick="toggleGateway(<?php echo $gateway['id']; ?>, <?php echo $gateway['is_active'] ? 'false' : 'true'; ?>)"
-                        class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium">
-                        <?php echo $gateway['is_active'] ? 'Disable' : 'Enable'; ?>
-                    </button>
-                </div>
-            </div>
-        <?php endforeach; ?>
+<!-- Gateways List -->
+<div class="card">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
+                    <th class="p-3 font-semibold">Gateway Name</th>
+                    <th class="p-3 font-semibold">Provider</th>
+                    <th class="p-3 font-semibold">Type</th>
+                    <th class="p-3 font-semibold">Usage / Limit</th>
+                    <th class="p-3 font-semibold">Status</th>
+                    <th class="p-3 font-semibold text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                <?php if (count($gateways) > 0): ?>
+                    <?php foreach ($gateways as $gateway):
+                        $config = json_decode($gateway['config'], true);
+                        $providerNames = [
+                            'twilio' => 'Twilio',
+                            'smpp' => 'SMPP',
+                            'gammu' => 'Gammu',
+                            'twilio_whatsapp' => 'Twilio WhatsApp',
+                            'whatsapp_business' => 'WhatsApp Business',
+                            '360dialog' => '360Dialog',
+                            'viber_bot' => 'Viber Bot',
+                            'ntfy' => 'ntfy (Self-Hosted)'
+                        ];
+                        $providerName = $providerNames[$gateway['provider']] ?? $gateway['provider'];
+                        ?>
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="p-3">
+                                <div class="font-medium text-slate-800"><?php echo htmlspecialchars($gateway['name']); ?></div>
+                                <?php if ($gateway['is_default']): ?>
+                                    <span
+                                        class="inline-block mt-1 px-1.5 py-0.5 bg-primary-50 text-primary-700 text-[10px] uppercase font-bold tracking-wider rounded">Default</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="p-3">
+                                <span class="text-sm text-slate-600"><?php echo htmlspecialchars($providerName); ?></span>
+                            </td>
+                            <td class="p-3">
+                                <span class="text-xs font-semibold px-2 py-1 rounded bg-slate-100 text-slate-600 uppercase">
+                                    <?php echo htmlspecialchars($gateway['type']); ?>
+                                </span>
+                            </td>
+                            <td class="p-3">
+                                <div class="text-sm text-slate-700">
+                                    <?php echo number_format($gateway['daily_sent']); ?> /
+                                    <?php echo number_format($gateway['daily_limit']); ?>
+                                </div>
+                                <div class="text-xs text-slate-500">
+                                    Total: <?php echo number_format($gateway['total_sent']); ?>
+                                </div>
+                            </td>
+                            <td class="p-3">
+                                <span
+                                    class="px-2 py-1 <?php echo $gateway['is_active'] ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'; ?> text-xs font-medium rounded">
+                                    <?php echo $gateway['is_active'] ? 'Active' : 'Inactive'; ?>
+                                </span>
+                            </td>
+                            <td class="p-3 text-right">
+                                <div class="flex gap-2 justify-end">
+                                    <a href="gateway_logs.php?id=<?php echo $gateway['id']; ?>" class="action-btn slate"
+                                        title="View Logs">
+                                        <?php echo \EduCRM\Services\NavigationService::getIcon('file-text', 16); ?>
+                                    </a>
+                                    <button onclick="testGateway(<?php echo $gateway['id']; ?>)" class="action-btn blue"
+                                        title="Test Gateway">
+                                        <?php echo \EduCRM\Services\NavigationService::getIcon('send', 16); ?>
+                                    </button>
+                                    <button
+                                        onclick="toggleGateway(<?php echo $gateway['id']; ?>, <?php echo $gateway['is_active'] ? 'false' : 'true'; ?>)"
+                                        class="action-btn <?php echo $gateway['is_active'] ? 'red' : 'green'; ?>"
+                                        title="<?php echo $gateway['is_active'] ? 'Disable' : 'Enable'; ?>">
+                                        <?php echo \EduCRM\Services\NavigationService::getIcon($gateway['is_active'] ? 'pause' : 'play', 16); ?>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="6" class="p-8 text-center">
+                            <div class="flex flex-col items-center justify-center text-slate-400">
+                                <?php echo \EduCRM\Services\NavigationService::getIcon('radio', 48); ?>
+                                <h3 class="mt-2 text-sm font-medium text-slate-900">No Gateways Configured</h3>
+                                <p class="mt-1 text-sm text-slate-500">Add your first messaging gateway to start sending
+                                    messages.</p>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
-<?php else: ?>
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
-        <div class="text-6xl mb-4">📡</div>
-        <h3 class="text-lg font-semibold text-slate-800 mb-2">No Gateways Configured</h3>
-        <p class="text-slate-600 mb-4">Add your first messaging gateway to start sending messages</p>
-        <button onclick="showAddModal()" class="btn inline-block">+ Add Gateway</button>
-    </div>
-<?php endif; ?>
+</div>
+
+
 
 <!-- Add Gateway Modal -->
 <div id="addModal"
@@ -206,6 +216,7 @@ require_once '../../includes/header.php';
                             <option value="sms">SMS</option>
                             <option value="whatsapp">WhatsApp</option>
                             <option value="viber">Viber</option>
+                            <option value="push">Push Notification</option>
                         </select>
                     </div>
                 </div>
@@ -228,7 +239,18 @@ require_once '../../includes/header.php';
                         <optgroup label="Viber">
                             <option value="viber_bot">Viber Bot API</option>
                         </optgroup>
+                        <optgroup label="Push Notification">
+                            <option value="ntfy">ntfy (Self-Hosted)</option>
+                        </optgroup>
                     </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Default Country Code</label>
+                    <input type="text" name="default_country_code" value="+1"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        placeholder="+1 (USA), +44 (UK), +977 (Nepal), etc.">
+                    <p class="text-xs text-slate-500 mt-1">Used when phone numbers don't include country code</p>
                 </div>
 
                 <!-- Twilio Config -->
@@ -312,6 +334,17 @@ require_once '../../includes/header.php';
                         class="w-full px-3 py-2 border border-slate-300 rounded-lg">
                 </div>
 
+                <!-- ntfy Config -->
+                <div id="ntfy_config" class="hidden space-y-3 p-4 bg-slate-50 rounded-lg">
+                    <h4 class="font-medium text-slate-800">ntfy Configuration</h4>
+                    <input type="text" name="url" placeholder="Server URL (http://localhost:8090)"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                    <input type="text" name="topic_prefix" placeholder="Topic Prefix (educrm)"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                    <input type="text" name="access_token" placeholder="Access Token (Optional)"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                </div>
+
                 <div class="grid grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2">Priority</label>
@@ -367,6 +400,7 @@ require_once '../../includes/header.php';
         document.getElementById('twilio_whatsapp_config')?.classList.add('hidden');
         document.getElementById('360dialog_config')?.classList.add('hidden');
         document.getElementById('viber_bot_config')?.classList.add('hidden');
+        document.getElementById('ntfy_config')?.classList.add('hidden');
 
         if (provider) {
             document.getElementById(provider + '_config')?.classList.remove('hidden');
@@ -374,11 +408,41 @@ require_once '../../includes/header.php';
     }
 
     function testGateway(gatewayId) {
-        if (!confirm('Test this gateway by sending a test message?')) return;
+        Modal.show({
+            type: 'confirm',
+            title: 'Test Gateway',
+            message: 'Enter the phone number to send a test message:',
+            confirmText: 'Send Test',
+            onConfirm: () => showPhoneInputModal(gatewayId)
+        });
+    }
 
-        const phone = prompt('Enter phone number to test:');
-        if (!phone) return;
+    function showPhoneInputModal(gatewayId) {
+        // Create phone input modal
+        const modal = document.getElementById('customModal');
+        const message = document.getElementById('modalMessage');
+        message.innerHTML = '<input type="tel" id="testPhoneInput" class="w-full px-3 py-2 border border-slate-300 rounded-lg mt-2" placeholder="+9779812345678">';
 
+        Modal.show({
+            type: 'info',
+            title: 'Enter Phone Number',
+            message: '',
+            confirmText: 'Send Test',
+            onConfirm: () => {
+                const phone = document.getElementById('testPhoneInput')?.value;
+                if (!phone) {
+                    Toast.warning('Please enter a phone number');
+                    return;
+                }
+                sendTestMessage(gatewayId, phone);
+            }
+        });
+        // Re-add input after show
+        document.getElementById('modalMessage').innerHTML = '<input type="tel" id="testPhoneInput" class="w-full px-3 py-2 border border-slate-300 rounded-lg mt-2" placeholder="+9779812345678">';
+        document.getElementById('testPhoneInput')?.focus();
+    }
+
+    function sendTestMessage(gatewayId, phone) {
         fetch('test_gateway.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -387,11 +451,12 @@ require_once '../../includes/header.php';
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('✅ Test message sent successfully!');
+                    Toast.success('Test message sent successfully!');
                 } else {
-                    alert('❌ Test failed: ' + data.error);
+                    Modal.error('Test failed: ' + data.error, 'Gateway Test Failed');
                 }
-            });
+            })
+            .catch(err => Modal.error('Network error: ' + err.message, 'Connection Error'));
     }
 
     function toggleGateway(gatewayId, activate) {
@@ -403,12 +468,14 @@ require_once '../../includes/header.php';
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    window.location.reload();
+                    Toast.success(activate ? 'Gateway activated' : 'Gateway deactivated');
+                    setTimeout(() => window.location.reload(), 500);
                 } else {
-                    alert('Error: ' + data.message);
+                    Modal.error(data.message, 'Error');
                 }
-            });
+            })
+            .catch(err => Modal.error('Network error: ' + err.message, 'Connection Error'));
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

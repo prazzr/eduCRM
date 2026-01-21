@@ -1,6 +1,6 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/AppointmentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
@@ -11,9 +11,9 @@ if (!hasRole('admin') && !hasRole('counselor')) {
 }
 
 $pageDetails = ['title' => 'Appointments'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 
-$appointmentService = new AppointmentService($pdo);
+$appointmentService = new \EduCRM\Services\AppointmentService($pdo);
 
 // Get filter parameters
 $statusFilter = $_GET['status'] ?? null;
@@ -50,46 +50,81 @@ if (hasRole('admin')) {
 }
 ?>
 
-<div class="mb-6 flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-slate-800">Appointments</h1>
+<div class="page-header">
+    <h1 class="page-title">Appointments</h1>
     <div class="flex gap-3">
-        <a href="calendar.php" class="btn-secondary px-4 py-2 rounded-lg font-medium">📅 Calendar View</a>
-        <a href="add.php" class="btn">+ New Appointment</a>
+        <a href="calendar.php" class="btn btn-secondary">
+            <?php echo \EduCRM\Services\NavigationService::getIcon('calendar', 16); ?> Calendar View
+        </a>
+        <a href="add.php" class="btn btn-primary">
+            <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> New Appointment
+        </a>
     </div>
 </div>
 
-<!-- Filters -->
-<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6">
-    <form method="GET" class="flex flex-wrap gap-3">
-        <select name="status" class="px-3 py-2 border border-slate-300 rounded-lg text-sm">
-            <option value="">All Statuses</option>
-            <option value="scheduled" <?php echo $statusFilter === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
-            <option value="completed" <?php echo $statusFilter === 'completed' ? 'selected' : ''; ?>>Completed</option>
-            <option value="cancelled" <?php echo $statusFilter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
-            <option value="no_show" <?php echo $statusFilter === 'no_show' ? 'selected' : ''; ?>>No Show</option>
-        </select>
+<!-- Quick Search with Alpine.js -->
+<div class="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-sm mb-4">
+    <div x-data='searchFilter({
+        data: <?php echo json_encode(array_map(function ($a) {
+            return [
+                'id' => $a['id'],
+                'title' => $a['title'],
+                'client' => $a['student_name'] ?? $a['inquiry_name'] ?? 'N/A',
+                'date' => date('M d, Y H:i', strtotime($a['appointment_date'])),
+                'status' => $a['status']
+            ];
+        }, $appointments)); ?>,
+        searchFields: ["title", "client"],
+        minLength: 1,
+        maxResults: 8
+    })' class="relative">
+        <div class="flex items-center gap-3">
+            <span class="text-slate-400">🔍</span>
+            <input type="text" x-model="query" @input="search()" @focus="if(query.length >= 1) showResults = true"
+                @keydown="handleKeydown($event)" @keydown.escape="showResults = false"
+                class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                placeholder="Quick search by title or client name..." autocomplete="off">
 
-        <input type="date" name="date_from" value="<?php echo htmlspecialchars($dateFrom ?? ''); ?>"
-            class="px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="From Date">
+            <span x-show="loading" class="spinner text-slate-400"></span>
+        </div>
 
-        <input type="date" name="date_to" value="<?php echo htmlspecialchars($dateTo ?? ''); ?>"
-            class="px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="To Date">
+        <!-- Search Results Dropdown -->
+        <div x-show="showResults && results.length > 0" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 transform -translate-y-2"
+            x-transition:enter-end="opacity-100 transform translate-y-0"
+            x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0" @click.outside="showResults = false"
+            class="search-results-container absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-80 overflow-y-auto z-50">
 
-        <?php if (hasRole('admin')): ?>
-            <select name="counselor_id" class="px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                <option value="">All Counselors</option>
-                <?php foreach ($counselors as $counselor): ?>
-                    <option value="<?php echo $counselor['id']; ?>" <?php echo ($counselorFilter == $counselor['id']) ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($counselor['name']); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        <?php endif; ?>
+            <template x-for="(item, index) in results" :key="item.id">
+                <a :href="'edit.php?id=' + item.id" :data-index="index" @mouseenter="setSelectedIndex(index)"
+                    class="flex items-center gap-3 px-4 py-3 border-b border-slate-100 transition-colors"
+                    :class="{ 'bg-primary-50 border-l-4 border-l-teal-600': isSelected(index), 'hover:bg-slate-50': !isSelected(index) }">
+                    <div class="w-1.5 h-9 rounded-full" :class="{
+                             'bg-blue-500': item.status === 'scheduled',
+                             'bg-emerald-500': item.status === 'completed',
+                             'bg-red-500': item.status === 'cancelled',
+                             'bg-orange-500': item.status === 'no_show'
+                         }"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium text-slate-800" x-text="item.title"></div>
+                        <div class="text-xs text-slate-500" x-text="item.client"></div>
+                    </div>
+                    <div class="text-right text-xs text-slate-400">
+                        <div x-text="item.date"></div>
+                        <div class="uppercase text-[9px] font-semibold" x-text="item.status"></div>
+                    </div>
+                </a>
+            </template>
 
-        <button type="submit" class="btn-secondary px-4 py-2 rounded-lg text-sm">Apply Filters</button>
-        <a href="list.php" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Clear</a>
-    </form>
+            <div x-show="results.length === 0 && query.length >= 1 && !loading"
+                class="px-4 py-3 text-center text-slate-500 text-sm">
+                No appointments found
+            </div>
+        </div>
+    </div>
 </div>
+
 
 <!-- Phase 2C: Bulk Action Toolbar -->
 <div id="bulkToolbar" class="hidden bg-primary-50 border border-primary-200 p-4 rounded-xl mb-6">
@@ -223,12 +258,19 @@ if (hasRole('admin')) {
                             </td>
                             <td class="p-3 text-right">
                                 <div class="flex gap-2 justify-end">
-                                    <a href="edit.php?id=<?php echo $apt['id']; ?>"
-                                        class="btn-secondary px-3 py-1.5 text-xs rounded">Edit</a>
+                                    <a href="edit.php?id=<?php echo $apt['id']; ?>" class="action-btn default" title="Edit">
+                                        <?php echo \EduCRM\Services\NavigationService::getIcon('edit', 16); ?>
+                                    </a>
                                     <?php if ($apt['meeting_link']): ?>
                                         <a href="<?php echo htmlspecialchars($apt['meeting_link']); ?>" target="_blank"
-                                            class="bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 text-xs rounded font-medium">
-                                            Join
+                                            class="action-btn blue" title="Join Meeting">
+                                            <?php echo \EduCRM\Services\NavigationService::getIcon('users', 16); ?>
+                                        </a>
+                                    <?php endif; ?>
+                                    <?php if (hasRole('admin')): ?>
+                                        <a href="#" onclick="confirmDelete(<?php echo $apt['id']; ?>)" class="action-btn red"
+                                            title="Delete">
+                                            <?php echo \EduCRM\Services\NavigationService::getIcon('trash', 16); ?>
                                         </a>
                                     <?php endif; ?>
                                 </div>
@@ -248,7 +290,7 @@ if (hasRole('admin')) {
     </div>
 </div>
 
-<!-- Phase 2C: Bulk Action JavaScript -->
+<!-- Bulk Action JavaScript with Modal System -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const selectAll = document.getElementById('selectAll');
@@ -296,13 +338,13 @@ if (hasRole('admin')) {
         applyBulkAction.addEventListener('click', function () {
             const action = bulkAction.value;
             if (!action) {
-                alert('Please select an action');
+                Modal.show({ type: 'warning', title: 'Select Action', message: 'Please select an action' });
                 return;
             }
 
             const selectedIds = Array.from(document.querySelectorAll('.appointment-checkbox:checked')).map(cb => cb.value);
             if (selectedIds.length === 0) {
-                alert('Please select at least one appointment');
+                Modal.show({ type: 'warning', title: 'No Selection', message: 'Please select at least one appointment' });
                 return;
             }
 
@@ -313,39 +355,59 @@ if (hasRole('admin')) {
             if (action === 'status') {
                 const status = statusSelect.value;
                 if (!status) {
-                    alert('Please select a status');
+                    Modal.show({ type: 'warning', title: 'Select Status', message: 'Please select a status' });
                     return;
                 }
                 formData.append('status', status);
             } else if (action === 'reschedule') {
                 const days = daysOffset.value;
                 if (!days || days == 0) {
-                    alert('Please enter number of days to reschedule (+/-)');
+                    Modal.show({ type: 'warning', title: 'Enter Days', message: 'Please enter number of days to reschedule (+/-)' });
                     return;
                 }
                 formData.append('days_offset', days);
             }
 
-            if (!confirm(`Are you sure you want to ${action} ${selectedIds.length} appointment(s)?`)) return;
+            const actionNames = { status: 'update status for', reschedule: 'reschedule', delete: 'delete' };
 
-            fetch('bulk_action.php', {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert(data.message);
-                        window.location.reload();
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    alert('An error occurred: ' + error);
-                });
+            Modal.show({
+                type: action === 'delete' ? 'error' : 'warning',
+                title: 'Confirm Bulk Action',
+                message: `Are you sure you want to ${actionNames[action] || action} ${selectedIds.length} appointment(s)?`,
+                confirmText: 'Yes, Proceed',
+                onConfirm: function () {
+                    fetch('bulk_action.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                Modal.show({ type: 'success', title: 'Success', message: data.message });
+                                setTimeout(() => window.location.reload(), 1500);
+                            } else {
+                                Modal.show({ type: 'error', title: 'Error', message: data.message });
+                            }
+                        })
+                        .catch(error => {
+                            Modal.show({ type: 'error', title: 'Error', message: 'An error occurred: ' + error });
+                        });
+                }
+            });
         });
     });
+
+    function confirmDelete(id) {
+        Modal.show({
+            type: 'error',
+            title: 'Delete Appointment?',
+            message: 'Are you sure you want to delete this appointment? This action cannot be undone.',
+            confirmText: 'Yes, Delete It',
+            onConfirm: function () {
+                window.location.href = 'delete.php?id=' + id;
+            }
+        });
+    }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

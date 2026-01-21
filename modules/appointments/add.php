@@ -1,6 +1,6 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/AppointmentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
@@ -11,9 +11,9 @@ if (!hasRole('admin') && !hasRole('counselor')) {
 }
 
 $pageDetails = ['title' => 'Schedule Appointment'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 
-$appointmentService = new AppointmentService($pdo);
+$appointmentService = new \EduCRM\Services\AppointmentService($pdo);
 $error = '';
 $success = '';
 
@@ -62,17 +62,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $counselor_id = hasRole('admin') ? ($_POST['counselor_id'] ?? '') : $_SESSION['user_id'];
 
     if (empty($title)) {
-        $error = 'Appointment title is required.';
+        redirectWithAlert("add.php", 'Appointment title is required.', 'error');
     } elseif (empty($appointment_date)) {
-        $error = 'Appointment date and time is required.';
+        redirectWithAlert("add.php", 'Appointment date and time is required.', 'error');
     } elseif (empty($counselor_id)) {
-        $error = 'Please select a counselor.';
+        redirectWithAlert("add.php", 'Please select a counselor.', 'error');
     } else {
         // Check for conflicts
         $hasConflict = $appointmentService->checkConflict($counselor_id, $appointment_date, $duration);
 
         if ($hasConflict) {
-            $error = 'This time slot conflicts with another appointment. Please choose a different time.';
+            redirectWithAlert("add.php", 'This time slot conflicts with another appointment. Please choose a different time.', 'error');
         } else {
             $appointmentData = [
                 'title' => $title,
@@ -87,10 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
 
             if ($appointmentService->createAppointment($appointmentData)) {
-                $success = 'Appointment scheduled successfully!';
-                header("refresh:1;url=list.php");
+                redirectWithAlert("list.php", 'Appointment scheduled successfully!', 'success');
             } else {
-                $error = 'Failed to schedule appointment. Please try again.';
+                redirectWithAlert("add.php", 'Failed to schedule appointment. Please try again.', 'error');
             }
         }
     }
@@ -102,17 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p class="text-slate-600 mt-1">Create an appointment with a student or inquiry</p>
 </div>
 
-<?php if ($error): ?>
-    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-        <?php echo htmlspecialchars($error); ?>
-    </div>
-<?php endif; ?>
-
-<?php if ($success): ?>
-    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg mb-6">
-        <?php echo htmlspecialchars($success); ?> Redirecting...
-    </div>
-<?php endif; ?>
+<?php renderFlashMessage(); ?>
 
 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
     <form method="POST" class="space-y-4">
@@ -281,4 +270,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

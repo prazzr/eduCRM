@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 requireRoles(['admin', 'teacher', 'student']);
@@ -14,7 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (hasRole('admin') || hasRole('teach
     if ($name && $course_id) {
         $stmt = $pdo->prepare("INSERT INTO classes (course_id, teacher_id, name, start_date) VALUES (?, ?, ?, ?)");
         $stmt->execute([$course_id, $teacher_id, $name, $start_date]);
-        redirectWithAlert("classes.php", "Class created!");
+        redirectWithAlert("classes.php", "Class created!", 'success');
+    } else {
+        redirectWithAlert("classes.php", "Class Name and Course are required.", 'error');
     }
 }
 
@@ -50,28 +52,25 @@ if (hasRole('admin')) {
 }
 
 $pageDetails = ['title' => 'Manage Classes'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
     <h2>Manage Classes</h2>
-    <?php if ($message): ?>
-        <div style="background: #dcfce7; color: #166534; padding: 10px; border-radius: 6px; margin: 10px 0;">
-            <?php echo $message; ?>
-        </div>
-    <?php endif; ?>
+
 
     <?php renderFlashMessage(); ?>
 
     <?php if (hasRole('admin')): ?>
-        <form method="POST" style="margin-bottom: 30px;">
+        <form method="POST" style="margin-bottom: 30px;" id="createClassForm">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                 <div class="form-group">
                     <label>Course</label>
-                    <select name="course_id" class="form-control" required>
-                        <option value="">Select Course</option>
-                        <?php renderSelectOptions($courses, 'id', 'name', ''); ?>
-                    </select>
+                    <input type="hidden" name="course_id" id="selectedCourseId" value="">
+                    <div style="position: relative;">
+                        <input type="text" id="courseSearch" class="form-control" placeholder="🔍 Search course..."
+                            autocomplete="off">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Class Name</label>
@@ -79,10 +78,11 @@ require_once '../../includes/header.php';
                 </div>
                 <div class="form-group">
                     <label>Assign Teacher</label>
-                    <select name="teacher_id" class="form-control">
-                        <option value="">Select Teacher</option>
-                        <?php renderSelectOptions($teachers, 'id', 'name', ''); ?>
-                    </select>
+                    <input type="hidden" name="teacher_id" id="selectedTeacherId" value="">
+                    <div style="position: relative;">
+                        <input type="text" id="teacherSearch" class="form-control" placeholder="🔍 Search teacher..."
+                            autocomplete="off">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Start Date</label>
@@ -91,6 +91,55 @@ require_once '../../includes/header.php';
             </div>
             <button type="submit" class="btn">Create Class</button>
         </form>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                // Course dropdown
+                const courseData = <?php echo json_encode(array_map(function ($c) {
+                    return ['id' => $c['id'], 'name' => $c['name']];
+                }, $courses)); ?>;
+
+                new SearchableDropdown({
+                    inputId: 'courseSearch',
+                    hiddenInputId: 'selectedCourseId',
+                    data: courseData,
+                    displayField: 'name'
+                });
+
+                // Teacher dropdown
+                const teacherData = <?php echo json_encode(array_map(function ($t) {
+                    return ['id' => $t['id'], 'name' => $t['name'], 'email' => $t['email'] ?? ''];
+                }, $teachers)); ?>;
+
+                new SearchableDropdown({
+                    inputId: 'teacherSearch',
+                    hiddenInputId: 'selectedTeacherId',
+                    data: teacherData,
+                    displayField: 'name',
+                    secondaryField: 'email'
+                });
+
+                // Validation
+                document.getElementById('createClassForm').addEventListener('submit', function (e) {
+                    if (!document.getElementById('selectedCourseId').value) {
+                        e.preventDefault();
+                        alert('Please select a course');
+                    }
+                });
+            });
+
+            function confirmDelete(id) {
+                Modal.show({
+                    type: 'error',
+                    title: 'Delete Class?',
+                    message: 'Are you sure you want to delete this class? All enrollments will be lost.',
+                    confirmText: 'Yes, Delete It',
+                    onConfirm: function () {
+                        window.location.href = 'class_delete.php?id=' + id;
+                    }
+                });
+            }
+        </script>
     <?php endif; ?>
 
     <h3>Active Classes</h3>
@@ -118,9 +167,8 @@ require_once '../../includes/header.php';
                             <?php if (hasRole('admin')): ?>
                                 <a href="class_edit.php?id=<?php echo $cl['id']; ?>" class="btn btn-secondary"
                                     style="padding: 5px 10px; font-size: 11px;">Edit</a>
-                                <a href="class_delete.php?id=<?php echo $cl['id']; ?>" class="btn"
-                                    style="padding: 5px 10px; font-size: 11px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;"
-                                    onclick="return confirm('Delete this class and all enrollments?')">Delete</a>
+                                <a href="#" onclick="confirmDelete(<?php echo $cl['id']; ?>)" class="btn"
+                                    style="padding: 5px 10px; font-size: 11px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">Delete</a>
                             <?php endif; ?>
                         </div>
                     </td>
@@ -130,4 +178,4 @@ require_once '../../includes/header.php';
     </table>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

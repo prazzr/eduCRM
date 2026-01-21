@@ -4,12 +4,12 @@
  * Secure download with authentication and tracking
  */
 
-require_once '../../config.php';
-require_once '../../includes/services/DocumentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
-$documentService = new DocumentService($pdo);
+$documentService = new \EduCRM\Services\DocumentService($pdo);
 
 $documentId = $_GET['id'] ?? null;
 $versionNumber = $_GET['version'] ?? null;

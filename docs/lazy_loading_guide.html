@@ -48,10 +48,10 @@
     <h3>Example Implementation:</h3>
     <pre>
 &lt;!-- Critical scripts (load immediately) --&gt;
-&lt;script src="assets/js/core.js"&gt;&lt;/script&gt;
+&lt;script src="public/assets/js/core.js"&gt;&lt;/script&gt;
 
 &lt;!-- Non-critical scripts (defer) --&gt;
-&lt;script src="assets/js/chart-components.min.js" defer&gt;&lt;/script&gt;
+&lt;script src="public/assets/js/chart-components.min.js" defer&gt;&lt;/script&gt;
 &lt;script src="https://cdn.jsdelivr.net/npm/chart.js" defer&gt;&lt;/script&gt;
     </pre>
 
@@ -65,8 +65,8 @@
 &lt;/style&gt;
 
 &lt;!-- Non-critical CSS deferred --&gt;
-&lt;link rel="preload" href="assets/css/style.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'"&gt;
-&lt;noscript&gt;&lt;link rel="stylesheet" href="assets/css/style.min.css"&gt;&lt;/noscript&gt;
+&lt;link rel="preload" href="public/assets/css/style.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'"&gt;
+&lt;noscript&gt;&lt;link rel="stylesheet" href="public/assets/css/style.min.css"&gt;&lt;/noscript&gt;
     </pre>
 
     <h2>4. Intersection Observer for Advanced Lazy Loading</h2>
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     <h2>6. Files to Update</h2>
     <ul>
-        <li>includes/header.php - Add defer to scripts</li>
+        <li>templates/header.php - Add defer to scripts</li>
         <li>modules/*/list.php - Add lazy loading to images</li>
         <li>modules/analytics/dashboard.php - Defer Chart.js</li>
         <li>All image tags - Add loading="lazy"</li>

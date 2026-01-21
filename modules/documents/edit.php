@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 if (hasRole('student')) {
@@ -24,12 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($title) {
         $stmt = $pdo->prepare("UPDATE student_documents SET title = ? WHERE id = ?");
         $stmt->execute([$title, $id]);
-        redirectWithAlert("list.php?student_id=" . $doc['student_id'], "Document title updated!");
+        redirectWithAlert("list.php?student_id=" . $doc['student_id'], "Document title updated!", 'warning');
+    } else {
+        redirectWithAlert("edit.php?id=$id", "Title is required.", 'error');
     }
 }
 
 $pageDetails = ['title' => 'Edit Document'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 500px; margin: 0 auto;">
@@ -51,4 +53,4 @@ require_once '../../includes/header.php';
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

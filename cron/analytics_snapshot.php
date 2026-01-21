@@ -5,11 +5,10 @@
  * Schedule: 0 0 * * * (daily at midnight)
  */
 
-require_once dirname(__DIR__) . '/config.php';
-require_once dirname(__DIR__) . '/includes/services/AnalyticsService.php';
+require_once dirname(__DIR__) . '/app/bootstrap.php';
 
 try {
-    $analytics = new AnalyticsService($pdo);
+    $analytics = new \EduCRM\Services\AnalyticsService($pdo);
 
     // Take daily snapshot
     $result = $analytics->takeSnapshot();

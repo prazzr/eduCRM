@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 if (hasRole('student')) {
@@ -12,7 +12,7 @@ if (!$id)
 
 try {
     $pdo->prepare("DELETE FROM partners WHERE id = ?")->execute([$id]);
-    header("Location: list.php?msg=deleted");
+    redirectWithAlert("list.php", "Partner deleted successfully!", "danger");
 } catch (PDOException $e) {
     die("Error: Cannot delete partner. They might be linked to other records.");
 }

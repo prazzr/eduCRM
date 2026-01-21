@@ -1,11 +1,11 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/MessagingFactory.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
-MessagingFactory::init($pdo);
+\EduCRM\Services\MessagingFactory::init($pdo);
 
 // Get queue statistics
 $stats = $pdo->query("
@@ -32,7 +32,7 @@ $stmt = $pdo->query("
 $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $pageDetails = ['title' => 'Message Queue'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="mb-6">
@@ -151,20 +151,21 @@ require_once '../../includes/header.php';
 
 <script>
     function processQueue() {
-        if (!confirm('Process pending messages now?')) return;
-
-        fetch('process_queue.php', {
-            method: 'POST'
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(`Processed: ${data.sent} sent, ${data.failed} failed`);
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            });
+        Modal.confirm('Process pending messages now?', () => {
+            fetch('process_queue.php', {
+                method: 'POST'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Modal.success(`Processed: ${data.sent} sent, ${data.failed} failed`, 'Queue Processed');
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        Modal.error(data.message, 'Error');
+                    }
+                })
+                .catch(err => Modal.error('Network error: ' + err.message, 'Connection Error'));
+        });
     }
 
     function retryMessage(messageId) {
@@ -176,31 +177,34 @@ require_once '../../includes/header.php';
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Message queued for retry');
-                    window.location.reload();
+                    Toast.success('Message queued for retry');
+                    setTimeout(() => window.location.reload(), 500);
                 } else {
-                    alert('Error: ' + data.message);
+                    Modal.error(data.message, 'Error');
                 }
-            });
+            })
+            .catch(err => Modal.error('Network error: ' + err.message, 'Connection Error'));
     }
 
     function cancelMessage(messageId) {
-        if (!confirm('Cancel this message?')) return;
-
-        fetch('cancel_message.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `id=${messageId}`
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            });
+        Modal.confirm('Cancel this message?', () => {
+            fetch('cancel_message.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `id=${messageId}`
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Toast.success('Message cancelled');
+                        setTimeout(() => window.location.reload(), 500);
+                    } else {
+                        Modal.error(data.message, 'Error');
+                    }
+                })
+                .catch(err => Modal.error('Network error: ' + err.message, 'Connection Error'));
+        });
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

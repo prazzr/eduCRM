@@ -4,12 +4,12 @@
  * Replaces variables and creates new document
  */
 
-require_once '../../config.php';
-require_once '../../includes/services/DocumentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
-$documentService = new DocumentService($pdo);
+$documentService = new \EduCRM\Services\DocumentService($pdo);
 
 $templateId = $_GET['template_id'] ?? null;
 $entityType = $_GET['entity_type'] ?? null;
@@ -94,13 +94,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
 
     } catch (Exception $e) {
-        $_SESSION['flash_message'] = 'Error: ' . $e->getMessage();
-        $_SESSION['flash_type'] = 'error';
+        redirectWithAlert("generate.php?template_id=$templateId" . ($entityType ? "&entity_type=$entityType" : "") . ($entityId ? "&entity_id=$entityId" : ""), 'Error: ' . $e->getMessage(), 'error');
     }
 }
 
 $pageDetails = ['title' => 'Generate Document'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="max-w-2xl mx-auto">
@@ -143,4 +142,4 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

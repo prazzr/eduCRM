@@ -1,0 +1,5 @@
+# Cache files - auto-generated
+*.cache
+
+# Keep the directory but ignore contents
+!.gitkeep

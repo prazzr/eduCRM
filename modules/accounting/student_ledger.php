@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 $student_id = isset($_GET['student_id']) ? (int) $_GET['student_id'] : 0;
@@ -28,9 +28,13 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_fee']
     $desc = sanitize($_POST['description']);
     $due_date = $_POST['due_date'];
 
-    $stmt = $pdo->prepare("INSERT INTO student_fees (student_id, fee_type_id, description, amount, due_date, status) VALUES (?, ?, ?, ?, ?, 'unpaid')");
-    $stmt->execute([$student_id, $fee_type_id, $desc, $amount, $due_date]);
-    $message = "Fee assigned successfully.";
+    if ($amount > 0) {
+        $stmt = $pdo->prepare("INSERT INTO student_fees (student_id, fee_type_id, description, amount, due_date, status) VALUES (?, ?, ?, ?, ?, 'unpaid')");
+        $stmt->execute([$student_id, $fee_type_id, $desc, $amount, $due_date]);
+        redirectWithAlert("student_ledger.php?student_id=$student_id", "Fee assigned successfully.", "success");
+    } else {
+        redirectWithAlert("student_ledger.php?student_id=$student_id", "Amount must be greater than zero.", "error");
+    }
 }
 
 // 2. Record Payment
@@ -53,7 +57,7 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_pa
         $limit = $fee_total - $total_paid_already;
 
         if ($amount > $limit) {
-            $message = "Error: Payment amount ($$amount) exceeds the remaining balance ($$limit).";
+            redirectWithAlert("student_ledger.php?student_id=$student_id", "Error: Payment amount ($$amount) exceeds the remaining balance ($$limit).", "danger");
         } else {
             $pdo->beginTransaction();
 
@@ -71,7 +75,7 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_pa
             $upd->execute([$new_status, $fee_id]);
 
             $pdo->commit();
-            $message = "Payment recorded successfully.";
+            redirectWithAlert("student_ledger.php?student_id=$student_id", "Payment recorded successfully.", "success");
         }
     }
 }
@@ -81,8 +85,8 @@ if ($isAdmin && isset($_GET['delete_fee'])) {
     $fid = (int) $_GET['delete_fee'];
     $stmt = $pdo->prepare("DELETE FROM student_fees WHERE id = ? AND status = 'unpaid'");
     $stmt->execute([$fid]);
-    header("Location: student_ledger.php?student_id=" . $student_id);
-    exit;
+    $stmt->execute([$fid]);
+    redirectWithAlert("student_ledger.php?student_id=" . $student_id, "Fee deleted successfully.", "danger");
 }
 
 // Fetch Ledger Data
@@ -100,7 +104,7 @@ $all_fees = $fees->fetchAll();
 $fee_types = $pdo->query("SELECT * FROM fee_types")->fetchAll();
 
 $pageDetails = ['title' => 'Student Ledger'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
@@ -109,13 +113,7 @@ require_once '../../includes/header.php';
         <p><strong>Email:</strong> <?php echo htmlspecialchars($student['email']); ?></p>
     </div>
 
-    <?php if ($message): ?>
-        <?php $isError = strpos($message, 'Error') !== false; ?>
-        <div
-            style="background: <?php echo $isError ? '#fee2e2' : '#dcfce7'; ?>; color: <?php echo $isError ? '#991b1b' : '#166534'; ?>; padding: 10px; border-radius: 6px; margin-bottom: 20px;">
-            <?php echo $message; ?>
-        </div>
-    <?php endif; ?>
+    <?php renderFlashMessage(); ?>
 
     <?php if ($isAdmin): ?>
         <!-- Admin Actions -->
@@ -125,7 +123,10 @@ require_once '../../includes/header.php';
                 <form method="POST">
                     <input type="hidden" name="add_fee" value="1">
                     <div class="form-group">
-                        <label>Fee Type</label>
+                        <div class="flex justify-between items-center mb-1">
+                            <label>Fee Type</label>
+                            <a href="fee_types.php" class="text-xs text-blue-600 hover:text-blue-800">Manage Types</a>
+                        </div>
                         <select name="fee_type_id" class="form-control">
                             <?php foreach ($fee_types as $ft): ?>
                                 <option value="<?php echo $ft['id']; ?>"><?php echo htmlspecialchars($ft['name']); ?>
@@ -145,7 +146,7 @@ require_once '../../includes/header.php';
                         <label>Due Date</label>
                         <input type="date" name="due_date" class="form-control">
                     </div>
-                    <button type="submit" class="btn">Assign Fee</button>
+                    <button type="submit" class="btn btn-primary">Assign Fee</button>
                 </form>
             </div>
 
@@ -183,8 +184,7 @@ require_once '../../includes/header.php';
                         <label>Remarks</label>
                         <input type="text" name="remarks" class="form-control">
                     </div>
-                    <button type="submit" class="btn btn-success" style="background-color: var(--success-color);">Record
-                        Payment</button>
+                    <button type="submit" class="btn btn-primary">Record Payment</button>
                 </form>
             </div>
         </div>
@@ -205,9 +205,9 @@ require_once '../../includes/header.php';
             </tr>
         </thead>
         <tbody>
+            <?php $total_outstanding = 0; ?>
             <?php foreach ($all_fees as $f): ?>
                 <?php
-                // Get Payments for this fee
                 $pays = $pdo->prepare("SELECT * FROM payments WHERE student_fee_id = ?");
                 $pays->execute([$f['id']]);
                 $payments = $pays->fetchAll();
@@ -215,6 +215,11 @@ require_once '../../includes/header.php';
                 $paid_amount = 0;
                 foreach ($payments as $p)
                     $paid_amount += $p['amount'];
+
+                $balance = $f['amount'] - $paid_amount;
+                if ($f['status'] !== 'paid') {
+                    $total_outstanding += $balance;
+                }
                 ?>
                 <tr>
                     <td><?php echo date('Y-m-d', strtotime($f['created_at'])); ?></td>
@@ -249,9 +254,10 @@ require_once '../../includes/header.php';
                     </td>
                     <?php if ($isAdmin): ?>
                         <td>
+                            <a href="invoice.php?fee_id=<?php echo $f['id']; ?>" target="_blank"
+                                style="color: #4f46e5; font-size: 12px; margin-right: 8px;" title="View Invoice">📄 Invoice</a>
                             <?php if ($f['status'] === 'unpaid'): ?>
-                                <a href="?student_id=<?php echo $student_id; ?>&delete_fee=<?php echo $f['id']; ?>"
-                                    onclick="return confirm('Delete this invoice?')"
+                                <a href="#" onclick="confirmDelete(<?php echo $f['id']; ?>)"
                                     style="color: #ef4444; font-size: 12px;">Delete</a>
                             <?php else: ?>
                                 <small style="color: #94a3b8;">Locked</small>
@@ -261,7 +267,32 @@ require_once '../../includes/header.php';
                 </tr>
             <?php endforeach; ?>
         </tbody>
+        <tfoot>
+            <tr style="background-color: #f8fafc; border-top: 2px solid #e2e8f0;">
+                <td colspan="4" style="text-align: right; padding: 15px; font-weight: bold; color: #475569;">
+                    Total Remaining Balance:
+                </td>
+                <td colspan="<?php echo $isAdmin ? 3 : 2; ?>"
+                    style="padding: 15px; font-weight: bold; color: #dc2626; font-size: 1.1em;">
+                    $<?php echo number_format($total_outstanding, 2); ?>
+                </td>
+            </tr>
+        </tfoot>
     </table>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>
+
+<script>
+    function confirmDelete(id) {
+        Modal.show({
+            type: 'error',
+            title: 'Delete Invoice?',
+            message: 'Are you sure you want to delete this invoice/fee? This is only possible if it is unpaid.',
+            confirmText: 'Yes, Delete It',
+            onConfirm: function () {
+                window.location.href = '?student_id=<?php echo $student_id; ?>&delete_fee=' + id;
+            }
+        });
+    }
+</script>

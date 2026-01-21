@@ -4,14 +4,14 @@
  * Deletes document and all versions
  */
 
-require_once '../../config.php';
-require_once '../../includes/services/DocumentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
 header('Content-Type: application/json');
 
-$documentService = new DocumentService($pdo);
+$documentService = new \EduCRM\Services\DocumentService($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method']);

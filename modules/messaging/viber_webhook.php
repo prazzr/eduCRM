@@ -5,7 +5,7 @@
  * Handles delivery receipts and incoming messages
  */
 
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 
 // Get webhook payload
 $input = file_get_contents('php://input');

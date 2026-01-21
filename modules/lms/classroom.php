@@ -1,5 +1,6 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
+
 requireLogin();
 
 $class_id = isset($_GET['class_id']) ? (int) $_GET['class_id'] : 0;
@@ -90,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_material']) && $c
 
     $stmt = $pdo->prepare("INSERT INTO class_materials (class_id, teacher_id, title, description, file_path, type, due_date) VALUES (?, ?, ?, ?, ?, ?, ?)");
     $stmt->execute([$class_id, $_SESSION['user_id'], $title, $desc, $file_path, $type, $due_date]);
-    $message = "Material added.";
+    redirectWithAlert("classroom.php?class_id=$class_id", "Material added successfully.", 'success');
 }
 
 // 2. Enroll Student (Teacher/Admin)
@@ -113,9 +114,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enroll_student']) && 
         if (!$exist->fetch()) {
             $stmt = $pdo->prepare("INSERT INTO enrollments (class_id, student_id) VALUES (?, ?)");
             $stmt->execute([$class_id, $student_id]);
-            $message = "Student enrolled.";
+            $enrollment_id = $pdo->lastInsertId();
+
+            // Send enrollment notification email
+            try {
+                $emailService = new \EduCRM\Services\EmailNotificationService($pdo);
+                $emailService->sendEnrollmentNotification($enrollment_id);
+            } catch (Exception $e) {
+                error_log("Failed to send enrollment email: " . $e->getMessage());
+            }
+
+            redirectWithAlert("classroom.php?class_id=$class_id", "Student enrolled. ✉️ Notification email queued.", 'success');
         } else {
-            $message = "Student already enrolled.";
+            redirectWithAlert("classroom.php?class_id=$class_id", "Student already enrolled.", 'warning');
         }
     }
 }
@@ -141,11 +152,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_assignment']) 
     $subExist = $pdo->prepare("SELECT id FROM submissions WHERE material_id = ? AND student_id = ?");
     $subExist->execute([$material_id, $_SESSION['user_id']]);
     if ($subExist->fetch()) {
-        $message = "You have already submitted this task.";
+        redirectWithAlert("classroom.php?class_id=$class_id", "You have already submitted this task.", 'warning');
     } else {
         $stmt = $pdo->prepare("INSERT INTO submissions (material_id, student_id, file_path, comments) VALUES (?, ?, ?, ?)");
         $stmt->execute([$material_id, $_SESSION['user_id'], $file_path, $comments]);
-        $message = "Task submitted successfully!";
+        redirectWithAlert("classroom.php?class_id=$class_id", "Task submitted successfully!", 'success');
     }
 }
 
@@ -183,21 +194,26 @@ $enrolled_students = $pdo->prepare("
 $enrolled_students->execute([$class_id]);
 $roster = $enrolled_students->fetchAll();
 
-// Fetch All Students for Enrollment Dropdown
+// Fetch All Students for Enrollment Dropdown (EXCLUDE already enrolled)
 $all_students = [];
 if ($can_edit) {
-    $all_students = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT DISTINCT u.id, u.name, u.email 
         FROM users u 
         JOIN user_roles ur ON u.id = ur.user_id 
         JOIN roles r ON ur.role_id = r.id 
         WHERE r.name = 'student' 
+        AND u.id NOT IN (
+            SELECT student_id FROM enrollments WHERE class_id = ?
+        )
         ORDER BY u.name
-    ")->fetchAll();
+    ");
+    $stmt->execute([$class_id]);
+    $all_students = $stmt->fetchAll();
 }
 
 $pageDetails = ['title' => $class['course_name'] . ' - Classroom'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
@@ -398,20 +414,158 @@ require_once '../../includes/header.php';
                 <h3>Class Roster</h3>
 
                 <?php if ($can_edit): ?>
-                    <div style="margin-bottom: 20px;">
-                        <form method="POST">
+                    <div style="margin-bottom: 20px; position: relative;">
+                        <form method="POST" id="enrollForm">
                             <input type="hidden" name="enroll_student" value="1">
-                            <select name="student_id" class="form-control" style="margin-bottom: 5px;" required>
-                                <option value="">Enroll Student...</option>
-                                <?php foreach ($all_students as $std): ?>
-                                    <option value="<?php echo $std['id']; ?>"><?php echo htmlspecialchars($std['name']); ?>
-                                        (<?php echo $std['email']; ?>)</option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="submit" class="btn btn-secondary"
-                                style="width: 100%; font-size: 12px;">Enroll</button>
+                            <input type="hidden" name="student_id" id="selectedStudentId" value="">
+
+                            <div style="position: relative;">
+                                <input type="text" id="studentSearch" class="form-control"
+                                    placeholder="🔍 Search student by name or email..." autocomplete="off"
+                                    style="margin-bottom: 5px;">
+
+                                <div id="studentDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; 
+                                           background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; 
+                                           max-height: 250px; overflow-y: auto; z-index: 1000; 
+                                           box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-secondary" id="enrollBtn" style="width: 100%; font-size: 12px;"
+                                disabled>Enroll</button>
                         </form>
                     </div>
+
+                    <script>
+                        (function () {
+                            const students = <?php echo json_encode($all_students); ?>;
+                            const searchInput = document.getElementById('studentSearch');
+                            const dropdown = document.getElementById('studentDropdown');
+                            const hiddenInput = document.getElementById('selectedStudentId');
+                            const enrollBtn = document.getElementById('enrollBtn');
+                            let selectedIndex = -1;
+
+                            function renderDropdown(filtered) {
+                                if (filtered.length === 0) {
+                                    dropdown.innerHTML = '<div style="padding: 12px; color: #64748b; text-align: center;">No students found</div>';
+                                } else {
+                                    dropdown.innerHTML = filtered.map((s, i) => `
+                                    <div class="student-option" data-id="${s.id}" data-index="${i}"
+                                        style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9;
+                                               display: flex; align-items: center; gap: 10px;">
+                                        <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #6366f1, #8b5cf6); 
+                                                    border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+                                                    color: #fff; font-weight: bold; font-size: 12px;">
+                                            ${s.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <div style="font-weight: 500; color: #1e293b;">${s.name}</div>
+                                            <div style="font-size: 11px; color: #64748b;">${s.email}</div>
+                                        </div>
+                                    </div>
+                                `).join('');
+                                }
+                                dropdown.style.display = 'block';
+                                selectedIndex = -1;
+                            }
+
+                            function selectStudent(id, name) {
+                                hiddenInput.value = id;
+                                searchInput.value = name;
+                                dropdown.style.display = 'none';
+                                enrollBtn.disabled = false;
+                                enrollBtn.style.background = '#6366f1';
+                                enrollBtn.style.color = '#fff';
+                            }
+
+                            function highlightOption(index) {
+                                const options = dropdown.querySelectorAll('.student-option');
+                                options.forEach((opt, i) => {
+                                    opt.style.background = i === index ? '#f1f5f9' : '#fff';
+                                });
+                            }
+
+                            searchInput.addEventListener('input', function () {
+                                const query = this.value.toLowerCase().trim();
+                                hiddenInput.value = '';
+                                enrollBtn.disabled = true;
+                                enrollBtn.style.background = '';
+                                enrollBtn.style.color = '';
+
+                                if (query.length < 1) {
+                                    dropdown.style.display = 'none';
+                                    return;
+                                }
+
+                                const filtered = students.filter(s =>
+                                    s.name.toLowerCase().includes(query) ||
+                                    s.email.toLowerCase().includes(query)
+                                ).slice(0, 10); // Limit to 10 results
+
+                                renderDropdown(filtered);
+                            });
+
+                            searchInput.addEventListener('focus', function () {
+                                if (this.value.length >= 1 && !hiddenInput.value) {
+                                    const query = this.value.toLowerCase().trim();
+                                    const filtered = students.filter(s =>
+                                        s.name.toLowerCase().includes(query) ||
+                                        s.email.toLowerCase().includes(query)
+                                    ).slice(0, 10);
+                                    renderDropdown(filtered);
+                                }
+                            });
+
+                            searchInput.addEventListener('keydown', function (e) {
+                                const options = dropdown.querySelectorAll('.student-option');
+                                if (options.length === 0) return;
+
+                                if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    selectedIndex = Math.min(selectedIndex + 1, options.length - 1);
+                                    highlightOption(selectedIndex);
+                                } else if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                                    highlightOption(selectedIndex);
+                                } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                                    e.preventDefault();
+                                    const opt = options[selectedIndex];
+                                    selectStudent(opt.dataset.id, opt.querySelector('div > div').textContent);
+                                } else if (e.key === 'Escape') {
+                                    dropdown.style.display = 'none';
+                                }
+                            });
+
+                            dropdown.addEventListener('click', function (e) {
+                                const option = e.target.closest('.student-option');
+                                if (option) {
+                                    selectStudent(option.dataset.id, option.querySelector('div > div').textContent);
+                                }
+                            });
+
+                            dropdown.addEventListener('mouseover', function (e) {
+                                const option = e.target.closest('.student-option');
+                                if (option) {
+                                    selectedIndex = parseInt(option.dataset.index);
+                                    highlightOption(selectedIndex);
+                                }
+                            });
+
+                            document.addEventListener('click', function (e) {
+                                if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                                    dropdown.style.display = 'none';
+                                }
+                            });
+
+                            document.getElementById('enrollForm').addEventListener('submit', function (e) {
+                                if (!hiddenInput.value) {
+                                    e.preventDefault();
+                                    alert('Please select a student from the list');
+                                }
+                            });
+                        })();
+                    </script>
                 <?php endif; ?>
 
                 <ul style="list-style: none;">
@@ -446,4 +600,4 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

@@ -1,5 +1,5 @@
 <?php
-require_once 'config.php';
+require_once 'app/bootstrap.php';
 
 $error = '';
 
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: " . BASE_URL);
         exit;
     } else {
-        $error = "Invalid email or password.";
+        redirectWithAlert("login.php", "Invalid email or password.", "error");
     }
 }
 ?>
@@ -68,11 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p class="text-slate-500">Please sign in to continue</p>
         </div>
 
-        <?php if ($error): ?>
-            <div class="bg-red-50 text-red-700 p-3 rounded-lg mb-6 text-center text-sm font-medium border border-red-100">
-                <?php echo $error; ?>
-            </div>
-        <?php endif; ?>
+        <?php renderFlashMessage(); ?>
 
         <form method="POST" class="space-y-5">
             <div>

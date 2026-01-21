@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 requireAdmin();
@@ -35,17 +35,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name && $course_id) {
         $stmt = $pdo->prepare("UPDATE classes SET course_id = ?, teacher_id = ?, name = ?, start_date = ? WHERE id = ?");
         $stmt->execute([$course_id, $teacher_id, $name, $start_date, $id]);
-        redirectWithAlert("classes.php", "Class updated!");
+        redirectWithAlert("classes.php", "Class updated!", 'warning');
 
-        $class['course_id'] = $course_id;
-        $class['teacher_id'] = $teacher_id;
         $class['name'] = $name;
         $class['start_date'] = $start_date;
+    } else {
+        redirectWithAlert("class_edit.php?id=$id", "Class Name and Course are required.", 'error');
     }
 }
 
 $pageDetails = ['title' => 'Edit Class'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 600px; margin: 0 auto;">
@@ -56,12 +56,17 @@ require_once '../../includes/header.php';
         </div>
     <?php endif; ?>
 
-    <form method="POST">
+    <form method="POST" id="editClassForm">
         <div class="form-group">
             <label>Course</label>
-            <select name="course_id" class="form-control" required>
-                <?php renderSelectOptions($courses, 'id', 'name', $class['course_id']); ?>
-            </select>
+            <input type="hidden" name="course_id" id="selectedCourseIdEdit" value="<?php echo $class['course_id']; ?>">
+            <div style="position: relative;">
+                <input type="text" id="courseSearchEdit" class="form-control" placeholder="🔍 Search course..."
+                    autocomplete="off" value="<?php
+                    $currentCourse = array_filter($courses, fn($c) => $c['id'] == $class['course_id']);
+                    echo htmlspecialchars(reset($currentCourse)['name'] ?? '');
+                    ?>">
+            </div>
         </div>
         <div class="form-group">
             <label>Class Name</label>
@@ -70,10 +75,15 @@ require_once '../../includes/header.php';
         </div>
         <div class="form-group">
             <label>Teacher</label>
-            <select name="teacher_id" class="form-control">
-                <option value="">Unassigned</option>
-                <?php renderSelectOptions($teachers, 'id', 'name', $class['teacher_id']); ?>
-            </select>
+            <input type="hidden" name="teacher_id" id="selectedTeacherIdEdit"
+                value="<?php echo $class['teacher_id']; ?>">
+            <div style="position: relative;">
+                <input type="text" id="teacherSearchEdit" class="form-control" placeholder="🔍 Search teacher..."
+                    autocomplete="off" value="<?php
+                    $currentTeacher = array_filter($teachers, fn($t) => $t['id'] == $class['teacher_id']);
+                    echo htmlspecialchars(reset($currentTeacher)['name'] ?? '');
+                    ?>">
+            </div>
         </div>
         <div class="form-group">
             <label>Start Date</label>
@@ -83,6 +93,43 @@ require_once '../../includes/header.php';
         <button type="submit" class="btn">Update Class</button>
         <a href="classes.php" class="btn btn-secondary">Back</a>
     </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Course dropdown
+            const courseData = <?php echo json_encode(array_map(function ($c) {
+                return ['id' => $c['id'], 'name' => $c['name']];
+            }, $courses)); ?>;
+
+            new SearchableDropdown({
+                inputId: 'courseSearchEdit',
+                hiddenInputId: 'selectedCourseIdEdit',
+                data: courseData,
+                displayField: 'name'
+            });
+
+            // Teacher dropdown
+            const teacherData = <?php echo json_encode(array_map(function ($t) {
+                return ['id' => $t['id'], 'name' => $t['name'], 'email' => $t['email'] ?? ''];
+            }, $teachers)); ?>;
+
+            new SearchableDropdown({
+                inputId: 'teacherSearchEdit',
+                hiddenInputId: 'selectedTeacherIdEdit',
+                data: teacherData,
+                displayField: 'name',
+                secondaryField: 'email'
+            });
+
+            // Validation
+            document.getElementById('editClassForm').addEventListener('submit', function (e) {
+                if (!document.getElementById('selectedCourseIdEdit').value) {
+                    e.preventDefault();
+                    alert('Please select a course');
+                }
+            });
+        });
+    </script>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

@@ -1,9 +1,26 @@
 <?php
-require_once 'config.php';
+require_once 'app/bootstrap.php';
+
+// PRG: Ensure session is started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 $token = isset($_GET['token']) ? sanitize($_GET['token']) : '';
 $error = '';
 $success = '';
+
+// PRG: Handle Flash Messages
+if (isset($_SESSION['flash_msg'])) {
+    if (is_array($_SESSION['flash_msg'])) {
+        $msg = $_SESSION['flash_msg'];
+        if ($msg['type'] === 'success')
+            $success = $msg['message'];
+        else
+            $error = $msg['message'];
+    }
+    unset($_SESSION['flash_msg']);
+}
 
 if (!$token) {
     die("Invalid or missing token.");
@@ -23,9 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm = $_POST['confirm_password'];
 
     if (strlen($password) < 6) {
-        $error = "Password must be at least 6 characters long.";
+        $_SESSION['flash_msg'] = ['message' => "Password must be at least 6 characters long.", 'type' => 'error'];
     } elseif ($password !== $confirm) {
-        $error = "Passwords do not match.";
+        $_SESSION['flash_msg'] = ['message' => "Passwords do not match.", 'type' => 'error'];
     } else {
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
@@ -33,8 +50,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $update = $pdo->prepare("UPDATE users SET password_hash = ?, reset_token = NULL, token_expiry = NULL WHERE id = ?");
         $update->execute([$hash, $user['id']]);
 
-        $success = "Password updated successfully! You can now <a href='login.php'>Login</a>.";
+        $_SESSION['flash_msg'] = ['message' => "Password updated successfully! You can now <a href='login.php'>Login</a>.", 'type' => 'success'];
     }
+
+    // Redirect
+    header("Location: reset_password_public.php?token=" . urlencode($token));
+    exit;
 }
 ?>
 
@@ -45,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Set New Password - Education CRM</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="public/assets/css/style.css">
     <style>
         body {
             display: flex;

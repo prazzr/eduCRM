@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 requireAdmin();
@@ -43,18 +43,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $pdo->commit();
-        redirectWithAlert("list.php", "User updated successfully!");
-
-        // Refresh data
-        $user['name'] = $name;
-        $user['email'] = $email;
-        $user['phone'] = $phone;
-        $active_role_ids = $new_roles;
+        redirectWithAlert("list.php", "User updated successfully!", 'warning');
+    } else {
+        redirectWithAlert("edit.php?id=$id", "Name and Email are required.", 'error');
     }
 }
 
 $pageDetails = ['title' => 'Edit User'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 600px; margin: 0 auto;">
@@ -100,4 +96,4 @@ require_once '../../includes/header.php';
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

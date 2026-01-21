@@ -4,13 +4,17 @@
  * Returns live priority counts for inquiries
  */
 
-require_once '../config.php';
-require_once '../includes/services/LeadScoringService.php';
+require_once '../config/config.php';
+require_once '../app/ApiMiddleware.php';
+require_once '../app/services/LeadScoringService.php';
+
+// Apply rate limiting: 60 requests per minute per user/IP
+\EduCRM\ApiMiddleware::enforceRateLimit(60, 60, 'api_priority_counts');
 
 header('Content-Type: application/json');
 
 try {
-    $scoringService = new LeadScoringService($pdo);
+    $scoringService = new \EduCRM\Services\LeadScoringService($pdo);
     $counts = $scoringService->getPriorityStats();
 
     echo json_encode([
@@ -28,3 +32,4 @@ try {
         'error' => $e->getMessage()
     ]);
 }
+

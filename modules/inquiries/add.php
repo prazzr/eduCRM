@@ -1,44 +1,63 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/LeadScoringService.php';
-requireLogin();
+/**
+ * Add Inquiry
+ * Creates new student inquiries with automatic lead scoring
+ */
+require_once '../../app/bootstrap.php';
 
-// Only Admin/Counselor
-requireAdminOrCounselor();
+
+
+requireLogin();
+requireAdminCounselorOrBranchManager();
 
 $message = '';
 $error = '';
 
+// Load lookup data using cached service (replaces direct queries)
+$lookup = \EduCRM\Services\LookupCacheService::getInstance($pdo);
+$countries = $lookup->getActiveRecords('countries');
+$educationLevels = $lookup->getAll('education_levels');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = sanitize($_POST['name']);
-    $email = sanitize($_POST['email']);
-    $phone = sanitize($_POST['phone']);
-    $country = sanitize($_POST['country']);
-    $course = sanitize($_POST['course']);
-    $edu_level = sanitize($_POST['edu_level']);
-    $assigned_to = $_SESSION['user_id'];
-
-    if ($name) {
-        try {
-            $stmt = $pdo->prepare("INSERT INTO inquiries (name, email, phone, intended_country, intended_course, education_level, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$name, $email, $phone, $country, $course, $edu_level, $assigned_to]);
-
-            // Phase 1: Auto-score the new inquiry
-            $inquiryId = $pdo->lastInsertId();
-            $leadScoringService = new LeadScoringService($pdo);
-            $leadScoringService->updateInquiryScore($inquiryId);
-
-            redirectWithAlert("list.php", "Inquiry added and scored successfully!");
-        } catch (PDOException $e) {
-            $error = "Error adding inquiry: " . $e->getMessage();
-        }
+    // Validate CSRF token
+    if (!csrf_verify()) {
+        redirectWithAlert("add.php", "Security validation failed. Please refresh and try again.", "error");
     } else {
-        $error = "Name is required.";
+        $name = sanitize($_POST['name']);
+        $email = sanitize($_POST['email']);
+        $phone = sanitize($_POST['phone']);
+        $country_id = !empty($_POST['country_id']) ? (int) $_POST['country_id'] : null;
+        $course = sanitize($_POST['course']);
+        $education_level_id = !empty($_POST['education_level_id']) ? (int) $_POST['education_level_id'] : null;
+        $source = sanitize($_POST['source'] ?? '');
+        $source_other = ($source === 'other') ? sanitize($_POST['source_other'] ?? '') : null;
+        $assigned_to = $_SESSION['user_id'];
+
+        if ($name) {
+            try {
+                $stmt = $pdo->prepare("INSERT INTO inquiries (name, email, phone, country_id, intended_course, education_level_id, source, source_other, assigned_to, status_id, priority_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 3)");
+                $stmt->execute([$name, $email, $phone, $country_id, $course, $education_level_id, $source, $source_other, $assigned_to]);
+
+                // Auto-score the new inquiry
+                $inquiryId = $pdo->lastInsertId();
+                $leadScoringService = new \EduCRM\Services\LeadScoringService($pdo);
+                $leadScoringService->updateInquiryScore($inquiryId);
+
+                // Log the action
+                logAction('inquiry_create', "Created inquiry ID: {$inquiryId}");
+
+                redirectWithAlert("list.php", "Inquiry added and scored successfully!", 'success');
+            } catch (PDOException $e) {
+                redirectWithAlert("add.php", "Error adding inquiry: " . $e->getMessage(), 'error');
+            }
+        } else {
+            redirectWithAlert("add.php", "Name is required.", 'error');
+        }
     }
 }
 
 $pageDetails = ['title' => 'Add Inquiry'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 800px; margin: 0 auto;">
@@ -57,6 +76,7 @@ require_once '../../includes/header.php';
     <?php endif; ?>
 
     <form method="POST">
+        <?php csrf_field(); ?>
         <div class="form-group">
             <label>Student Name *</label>
             <input type="text" name="name" class="form-control" required>
@@ -76,13 +96,11 @@ require_once '../../includes/header.php';
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div class="form-group">
                 <label>Intended Country</label>
-                <select name="country" class="form-control">
+                <select name="country_id" class="form-control">
                     <option value="">Select Country</option>
-                    <option value="USA">USA</option>
-                    <option value="UK">UK</option>
-                    <option value="Australia">Australia</option>
-                    <option value="Canada">Canada</option>
-                    <option value="Europe">Europe</option>
+                    <?php foreach ($countries as $c): ?>
+                        <option value="<?php echo $c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="form-group">
@@ -99,12 +117,49 @@ require_once '../../includes/header.php';
 
         <div class="form-group">
             <label>Current Education Level</label>
-            <input type="text" name="edu_level" class="form-control" placeholder="e.g. +2 Completed, Bachelor Running">
+            <select name="education_level_id" class="form-control">
+                <option value="">Select Education Level</option>
+                <?php foreach ($educationLevels as $el): ?>
+                    <option value="<?php echo $el['id']; ?>"><?php echo htmlspecialchars($el['name']); ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
+
+        <div class="form-group">
+            <label>Source</label>
+            <select name="source" id="source" class="form-control" onchange="toggleSourceOther()">
+                <option value="">Select Source</option>
+                <option value="walk_in">Walk In</option>
+                <option value="referred">Referred</option>
+                <option value="social_media_post">Social Media Post</option>
+                <option value="social_media_ad">Social Media Ad</option>
+                <option value="sms_campaign">SMS Campaign</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="source_other_container" style="display: none;">
+            <label>Please Specify (Optional)</label>
+            <input type="text" name="source_other" id="source_other" class="form-control"
+                placeholder="Enter source details...">
+        </div>
+
+        <script>
+            function toggleSourceOther() {
+                var sourceSelect = document.getElementById('source');
+                var otherContainer = document.getElementById('source_other_container');
+                if (sourceSelect.value === 'other') {
+                    otherContainer.style.display = 'block';
+                } else {
+                    otherContainer.style.display = 'none';
+                    document.getElementById('source_other').value = '';
+                }
+            }
+        </script>
 
         <button type="submit" class="btn">Save Inquiry</button>
         <a href="list.php" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

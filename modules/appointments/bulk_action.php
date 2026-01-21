@@ -4,12 +4,12 @@
  * Processes bulk operations on selected appointments
  */
 
-require_once '../../config.php';
-require_once '../../includes/services/BulkActionService.php';
-require_once '../../includes/services/AppointmentService.php';
+require_once '../../app/bootstrap.php';
+
+
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
 header('Content-Type: application/json');
 
@@ -19,8 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$bulkService = new BulkActionService($pdo);
-$appointmentService = new AppointmentService($pdo);
+$bulkService = new \EduCRM\Services\BulkActionService($pdo);
+$appointmentService = new \EduCRM\Services\AppointmentService($pdo);
 
 $action = $_POST['action'] ?? '';
 $appointmentIds = $_POST['appointment_ids'] ?? [];

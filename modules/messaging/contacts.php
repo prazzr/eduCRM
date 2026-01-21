@@ -1,11 +1,11 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/MessagingFactory.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
-MessagingFactory::init($pdo);
+\EduCRM\Services\MessagingFactory::init($pdo);
 
 // Handle contact actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -30,10 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             json_encode($tags)
         ]);
 
-        $_SESSION['flash_message'] = 'Contact added successfully';
-        $_SESSION['flash_type'] = 'success';
-        header('Location: contacts.php');
-        exit;
+        redirectWithAlert('contacts.php', 'Contact added successfully', 'success');
     }
 
     if ($_POST['action'] === 'import_csv') {
@@ -62,10 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
             fclose($file);
 
-            $_SESSION['flash_message'] = "Imported $imported contacts successfully";
-            $_SESSION['flash_type'] = 'success';
-            header('Location: contacts.php');
-            exit;
+            redirectWithAlert('contacts.php', "Imported $imported contacts successfully", 'success');
         }
     }
 
@@ -101,10 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
-        $_SESSION['flash_message'] = "Synced $synced student contacts";
-        $_SESSION['flash_type'] = 'success';
-        header('Location: contacts.php');
-        exit;
+        redirectWithAlert('contacts.php', "Synced $synced student contacts", 'success');
     }
 }
 
@@ -138,7 +129,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 $allTags = array_unique($allTags);
 
 $pageDetails = ['title' => 'Contacts'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="mb-6 flex justify-between items-center">
@@ -383,4 +374,4 @@ Jane Smith,+0987654321,jane@example.com</pre>
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

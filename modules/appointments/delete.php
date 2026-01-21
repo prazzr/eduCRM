@@ -1,6 +1,6 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/AppointmentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
@@ -10,7 +10,7 @@ if (!hasRole('admin') && !hasRole('counselor')) {
     exit;
 }
 
-$appointmentService = new AppointmentService($pdo);
+$appointmentService = new \EduCRM\Services\AppointmentService($pdo);
 
 // Get appointment ID
 $appointmentId = $_GET['id'] ?? 0;
@@ -23,14 +23,13 @@ if (!$appointment) {
 
 // Check permission
 if (!hasRole('admin') && $appointment['counselor_id'] != $_SESSION['user_id']) {
-    header('Location: list.php');
-    exit;
+    redirectWithAlert("list.php", "Unauthorized access.", "danger");
 }
 
 // Delete the appointment
 if ($appointmentService->deleteAppointment($appointmentId)) {
-    header('Location: list.php?deleted=1');
+    redirectWithAlert("list.php", "Appointment deleted successfully!", "danger");
 } else {
-    header('Location: list.php?error=delete_failed');
+    redirectWithAlert("list.php", "Failed to delete appointment.", "danger");
 }
 exit;

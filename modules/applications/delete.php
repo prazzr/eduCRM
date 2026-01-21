@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 if (hasRole('student')) {
@@ -11,5 +11,5 @@ if (!$id)
     die("Invalid ID");
 
 $pdo->prepare("DELETE FROM university_applications WHERE id = ?")->execute([$id]);
-header("Location: tracker.php?msg=deleted");
+redirectWithAlert("tracker.php", "Application deleted successfully!", "danger");
 exit;

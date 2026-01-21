@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 $class_id = isset($_GET['class_id']) ? (int) $_GET['class_id'] : 0;
@@ -51,11 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_performance']) &
         }
 
         $pdo->commit();
-        $message = "Performance data saved successfully.";
+        redirectWithAlert("daily_roster.php?class_id=$class_id&roster_id=$roster_id", "Performance data saved successfully.", 'success');
     } catch (Exception $e) {
         if ($pdo->inTransaction())
             $pdo->rollBack();
-        $error = "Error saving: " . $e->getMessage();
+        redirectWithAlert("daily_roster.php?class_id=$class_id&roster_id=$roster_id", "Error saving: " . $e->getMessage(), 'error');
     }
 }
 
@@ -83,7 +83,7 @@ $students_stmt->execute($params);
 $students = $students_stmt->fetchAll();
 
 $pageDetails = ['title' => 'Daily Roster - ' . date('M d', strtotime($details['roster_date']))];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
@@ -213,7 +213,7 @@ require_once '../../includes/header.php';
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>
 
 <script>
     function markAllPresent() {

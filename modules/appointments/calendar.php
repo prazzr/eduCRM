@@ -1,6 +1,6 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/AppointmentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
@@ -10,7 +10,7 @@ if (!hasRole('admin') && !hasRole('counselor')) {
     exit;
 }
 
-$appointmentService = new AppointmentService($pdo);
+$appointmentService = new \EduCRM\Services\AppointmentService($pdo);
 
 // Handle AJAX requests for calendar data
 if (isset($_GET['action']) && $_GET['action'] === 'get_events') {
@@ -51,7 +51,7 @@ if (hasRole('admin')) {
 }
 
 $pageDetails = ['title' => 'Appointment Calendar'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="mb-6 flex justify-between items-center">
@@ -267,4 +267,4 @@ require_once '../../includes/header.php';
     });
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

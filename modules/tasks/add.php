@@ -1,19 +1,23 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/TaskService.php';
+/**
+ * Add Task
+ * Creates new tasks with user assignment and priority
+ */
+require_once '../../app/bootstrap.php';
+
+
 
 requireLogin();
 
 $pageDetails = ['title' => 'Add Task'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 
-$taskService = new TaskService($pdo);
+$taskService = new \EduCRM\Services\TaskService($pdo);
 $error = '';
 $success = '';
 
-// Get all users for assignment dropdown
-$usersStmt = $pdo->query("SELECT id, name FROM users ORDER BY name");
-$users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+// Get all users for assignment dropdown (using helper)
+$users = users()->getAllUsers();
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -42,9 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         if ($taskService->createTask($taskData)) {
-            $success = 'Task created successfully!';
-            // Redirect after 1 second
-            header("refresh:1;url=list.php");
+            // Use standard helper for consistent behavior
+            redirectWithAlert('list.php', 'Task created successfully!', 'success');
         } else {
             $error = 'Failed to create task. Please try again.';
         }
@@ -95,18 +98,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Assigned To -->
             <div>
-                <label for="assigned_to" class="block text-sm font-medium text-slate-700 mb-1">
+                <label for="assignedSearch" class="block text-sm font-medium text-slate-700 mb-1">
                     Assign To <span class="text-red-500">*</span>
                 </label>
-                <select id="assigned_to" name="assigned_to" required
-                    class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                    <option value="">Select User</option>
-                    <?php foreach ($users as $user): ?>
-                        <option value="<?php echo $user['id']; ?>" <?php echo (isset($_POST['assigned_to']) && $_POST['assigned_to'] == $user['id']) ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($user['name']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <input type="hidden" name="assigned_to" id="assignedToValue"
+                    value="<?php echo htmlspecialchars($_POST['assigned_to'] ?? ''); ?>">
+                <div style="position: relative;">
+                    <input type="text" id="assignedSearch"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="🔍 Search user by name..." autocomplete="off">
+                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const userData = <?php echo json_encode(array_map(function ($u) {
+                            return ['id' => $u['id'], 'name' => $u['name']];
+                        }, $users)); ?>;
+
+                        new SearchableDropdown({
+                            inputId: 'assignedSearch',
+                            hiddenInputId: 'assignedToValue',
+                            data: userData,
+                            displayField: 'name'
+                        });
+                    });
+                </script>
             </div>
 
             <!-- Priority -->
@@ -178,4 +193,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

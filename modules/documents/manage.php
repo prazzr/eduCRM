@@ -1,11 +1,11 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/DocumentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
-$documentService = new DocumentService($pdo);
+$documentService = new \EduCRM\Services\DocumentService($pdo);
 
 // Get filter parameters
 $entityType = $_GET['entity_type'] ?? null;
@@ -42,7 +42,7 @@ if ($entityType && $entityId) {
 $categories = $documentService->getCategories();
 
 $pageDetails = ['title' => 'Document Management'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="mb-6 flex justify-between items-center">
@@ -249,25 +249,32 @@ require_once '../../includes/header.php';
     }
 
     function deleteDocument(documentId) {
-        if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
-            return;
-        }
-
-        fetch('delete.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `id=${documentId}`
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Document deleted successfully');
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            });
+        Modal.show({
+            type: 'error',
+            title: 'Delete Document?',
+            message: 'Are you sure you want to delete this document? This action cannot be undone.',
+            confirmText: 'Yes, Delete It',
+            onConfirm: function () {
+                fetch('delete.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `id=${documentId}`
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // For consistency, we could reload which will show flash if we set it, 
+                            // but here we just reload. Ideally we'd use a toast, but alert is acceptable for AJAX response for now, 
+                            // or better, simple reload. 
+                            // Let's use a simple reload to refresh the grid.
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    });
+            }
+        });
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

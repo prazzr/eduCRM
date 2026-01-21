@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 requireAdmin();
@@ -36,7 +36,7 @@ $message .= "Link: <a href='$reset_link' target='_blank'>$reset_link</a><br>";
 $message .= "<small style='color: grey;'>(Simulation: This link has also been logged to mail_log.txt)</small>";
 
 $pageDetails = ['title' => 'Email Password Reset'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 600px; margin: 0 auto;">
@@ -53,4 +53,4 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

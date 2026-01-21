@@ -1,12 +1,14 @@
 <?php
-require_once '../../config.php';
+/**
+ * User Delete
+ * Handles staff user deletion with safety checks
+ */
+require_once '../../app/bootstrap.php';
 requireLogin();
-
 requireAdmin();
 
-$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-if (!$id)
-    die("Invalid ID");
+// Validate ID parameter
+$id = requireIdParam();
 
 // Prevent self-deletion
 if ($id == $_SESSION['user_id']) {
@@ -15,14 +17,21 @@ if ($id == $_SESSION['user_id']) {
 
 try {
     $pdo->beginTransaction();
-    // Delete roles first
+    
+    // Log the deletion before removing
+    logAction('user_delete', "Deleted user ID: {$id}");
+    
+    // Delete roles first (foreign key constraint)
     $pdo->prepare("DELETE FROM user_roles WHERE user_id = ?")->execute([$id]);
+    
     // Delete user
     $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
+    
     $pdo->commit();
-    header("Location: list.php?msg=deleted");
+    redirectWithAlert("list.php", "User deleted successfully!", "danger");
 } catch (PDOException $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     die("Error: Cannot delete user. They might be linked to inquiries, classes, or payments.");
 }
-exit;

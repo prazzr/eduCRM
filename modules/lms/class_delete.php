@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 requireAdmin();
@@ -17,7 +17,7 @@ try {
     // Delete class
     $pdo->prepare("DELETE FROM classes WHERE id = ?")->execute([$id]);
     $pdo->commit();
-    header("Location: classes.php?msg=deleted");
+    redirectWithAlert("classes.php", "Class deleted successfully!", "danger");
 } catch (PDOException $e) {
     $pdo->rollBack();
     die("Error: Cannot delete class. It might be linked to other records.");

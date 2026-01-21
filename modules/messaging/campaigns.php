@@ -1,66 +1,68 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/MessagingFactory.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
-MessagingFactory::init($pdo);
+\EduCRM\Services\MessagingFactory::init($pdo);
 
 // Handle campaign actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'create_campaign') {
-        // Create campaign
-        $stmt = $pdo->prepare("
-            INSERT INTO messaging_campaigns (name, message_type, template_id, message, scheduled_at, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-
-        $stmt->execute([
-            $_POST['name'],
-            $_POST['message_type'],
-            $_POST['template_id'] ?? null,
-            $_POST['message'],
-            $_POST['scheduled_at'] ?? null,
-            $_SESSION['user_id']
-        ]);
-
-        $campaignId = $pdo->lastInsertId();
-
-        // Add recipients
-        $recipients = explode("\n", $_POST['recipients']);
-        $recipients = array_filter(array_map('trim', $recipients));
-
-        foreach ($recipients as $recipient) {
+        try {
+            // Create campaign
             $stmt = $pdo->prepare("
-                INSERT INTO messaging_campaign_recipients (campaign_id, recipient)
-                VALUES (?, ?)
+                INSERT INTO messaging_campaigns (name, message_type, template_id, message, scheduled_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
-            $stmt->execute([$campaignId, $recipient]);
-        }
 
-        // Update total recipients
-        $pdo->prepare("UPDATE messaging_campaigns SET total_recipients = ? WHERE id = ?")
-            ->execute([count($recipients), $campaignId]);
+            $stmt->execute([
+                $_POST['name'],
+                $_POST['message_type'],
+                $_POST['template_id'] ?? null,
+                $_POST['message'],
+                $_POST['scheduled_at'] ?? null,
+                $_SESSION['user_id']
+            ]);
 
-        // If not scheduled, start immediately
-        if (empty($_POST['scheduled_at'])) {
-            $pdo->prepare("UPDATE messaging_campaigns SET status = 'processing' WHERE id = ?")
-                ->execute([$campaignId]);
+            $campaignId = $pdo->lastInsertId();
 
-            // Queue messages
-            $gateway = MessagingFactory::create();
+            // Add recipients
+            $recipients = explode("\n", $_POST['recipients']);
+            $recipients = array_filter(array_map('trim', $recipients));
+
             foreach ($recipients as $recipient) {
-                $gateway->queue($recipient, $_POST['message'], [
-                    'metadata' => ['campaign_id' => $campaignId]
-                ]);
+                $stmt = $pdo->prepare("
+                    INSERT INTO messaging_campaign_recipients (campaign_id, recipient)
+                    VALUES (?, ?)
+                ");
+                $stmt->execute([$campaignId, $recipient]);
             }
+
+            // Update total recipients
+            $pdo->prepare("UPDATE messaging_campaigns SET total_recipients = ? WHERE id = ?")
+                ->execute([count($recipients), $campaignId]);
+
+            // If not scheduled, start immediately
+            if (empty($_POST['scheduled_at'])) {
+                $pdo->prepare("UPDATE messaging_campaigns SET status = 'processing' WHERE id = ?")
+                    ->execute([$campaignId]);
+
+                // Queue messages
+                $gateway = \EduCRM\Services\MessagingFactory::create();
+                foreach ($recipients as $recipient) {
+                    $gateway->queue($recipient, $_POST['message'], [
+                        'metadata' => ['campaign_id' => $campaignId]
+                    ]);
+                }
+            }
+
+            redirectWithAlert('campaigns.php', 'Campaign created successfully', 'success');
+        } catch (Exception $e) {
+            redirectWithAlert('campaigns.php', 'Error creating campaign: ' . $e->getMessage(), 'error');
         }
 
-        $_SESSION['flash_message'] = 'Campaign created successfully';
-        $_SESSION['flash_type'] = 'success';
-        header('Location: campaigns.php');
-        exit;
     }
 }
 
@@ -78,129 +80,130 @@ $stmt = $pdo->query("SELECT id, name FROM messaging_templates WHERE is_active = 
 $templates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $pageDetails = ['title' => 'SMS Campaigns'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
-<div class="mb-6 flex justify-between items-center">
+<div class="page-header">
     <div>
-        <h1 class="text-2xl font-bold text-slate-800">📢 SMS Campaigns</h1>
-        <p class="text-slate-600 mt-1">Create and manage bulk messaging campaigns</p>
+        <h1 class="page-title">SMS Campaigns</h1>
+        <p class="text-slate-500 mt-1 text-sm">Create and manage bulk messaging campaigns</p>
     </div>
-    <button onclick="showCreateModal()" class="btn">+ New Campaign</button>
+    <button onclick="showCreateModal()" class="btn btn-primary">
+        <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> New Campaign
+    </button>
 </div>
 
 <?php renderFlashMessage(); ?>
 
 <!-- Campaigns List -->
-<?php if (count($campaigns) > 0): ?>
-    <div class="space-y-4">
-        <?php foreach ($campaigns as $campaign):
-            $progress = $campaign['total_recipients'] > 0
-                ? round(($campaign['sent_count'] / $campaign['total_recipients']) * 100)
-                : 0;
+<div class="card">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
+                    <th class="p-3 font-semibold">Campaign Name</th>
+                    <th class="p-3 font-semibold">Status</th>
+                    <th class="p-3 font-semibold">Progress</th>
+                    <th class="p-3 font-semibold">Stats</th>
+                    <th class="p-3 font-semibold">Created</th>
+                    <th class="p-3 font-semibold text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                <?php if (count($campaigns) > 0): ?>
+                    <?php foreach ($campaigns as $campaign):
+                        $progress = $campaign['total_recipients'] > 0
+                            ? round(($campaign['sent_count'] / $campaign['total_recipients']) * 100)
+                            : 0;
 
-            $statusColors = [
-                'draft' => 'bg-slate-100 text-slate-700',
-                'scheduled' => 'bg-blue-100 text-blue-700',
-                'processing' => 'bg-yellow-100 text-yellow-700',
-                'completed' => 'bg-emerald-100 text-emerald-700',
-                'cancelled' => 'bg-red-100 text-red-700'
-            ];
-            $statusColor = $statusColors[$campaign['status']] ?? 'bg-slate-100 text-slate-700';
-            ?>
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="font-bold text-slate-800 text-lg">
-                            <?php echo htmlspecialchars($campaign['name']); ?>
-                        </h3>
-                        <p class="text-sm text-slate-600 mt-1">
-                            Created by
-                            <?php echo htmlspecialchars($campaign['created_by_name']); ?> •
-                            <?php echo date('M d, Y H:i', strtotime($campaign['created_at'])); ?>
-                        </p>
-                    </div>
-                    <span class="px-3 py-1 <?php echo $statusColor; ?> text-xs font-medium rounded">
-                        <?php echo ucfirst($campaign['status']); ?>
-                    </span>
-                </div>
-
-                <?php if ($campaign['status'] === 'processing' || $campaign['status'] === 'completed'): ?>
-                    <div class="mb-4">
-                        <div class="flex justify-between text-sm mb-2">
-                            <span class="text-slate-600">Progress</span>
-                            <span class="font-medium text-slate-800">
-                                <?php echo $campaign['sent_count']; ?>/
-                                <?php echo $campaign['total_recipients']; ?> (
-                                <?php echo $progress; ?>%)
-                            </span>
-                        </div>
-                        <div class="w-full bg-slate-200 rounded-full h-2">
-                            <div class="bg-primary-600 h-2 rounded-full transition-all" style="width: <?php echo $progress; ?>%">
+                        $statusColors = [
+                            'draft' => 'bg-slate-100 text-slate-700',
+                            'scheduled' => 'bg-blue-100 text-blue-700',
+                            'processing' => 'bg-yellow-100 text-yellow-700',
+                            'completed' => 'bg-emerald-100 text-emerald-700',
+                            'cancelled' => 'bg-red-100 text-red-700'
+                        ];
+                        $statusColor = $statusColors[$campaign['status']] ?? 'bg-slate-100 text-slate-700';
+                        ?>
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="p-3">
+                                <div class="font-medium text-slate-800"><?php echo htmlspecialchars($campaign['name']); ?></div>
+                                <div class="text-xs text-slate-500 mt-0.5">
+                                    <?php echo htmlspecialchars(substr($campaign['message'], 0, 50)) . (strlen($campaign['message']) > 50 ? '...' : ''); ?>
+                                </div>
+                            </td>
+                            <td class="p-3">
+                                <span class="px-2 py-0.5 <?php echo $statusColor; ?> text-xs font-bold uppercase rounded">
+                                    <?php echo $campaign['status']; ?>
+                                </span>
+                                <?php if ($campaign['scheduled_at'] && $campaign['status'] === 'scheduled'): ?>
+                                    <div class="text-xs text-blue-600 mt-1">
+                                        <?php echo date('M d, H:i', strtotime($campaign['scheduled_at'])); ?>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                            <td class="p-3 align-middle">
+                                <?php if ($campaign['status'] === 'processing' || $campaign['status'] === 'completed'): ?>
+                                    <div class="w-24 bg-slate-200 rounded-full h-1.5 mb-1">
+                                        <div class="bg-primary-600 h-1.5 rounded-full" style="width: <?php echo $progress; ?>%">
+                                        </div>
+                                    </div>
+                                    <div class="text-xs text-slate-500"><?php echo $progress; ?>%
+                                        (<?php echo $campaign['sent_count']; ?>/<?php echo $campaign['total_recipients']; ?>)</div>
+                                <?php else: ?>
+                                    <span class="text-xs text-slate-400">-</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="p-3 text-sm">
+                                <?php if ($campaign['status'] === 'processing' || $campaign['status'] === 'completed'): ?>
+                                    <div class="flex gap-2 text-xs">
+                                        <span class="text-emerald-600" title="Delivered">✓
+                                            <?php echo $campaign['delivered_count']; ?></span>
+                                        <span class="text-red-600" title="Failed">✗ <?php echo $campaign['failed_count']; ?></span>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="text-xs text-slate-400">-</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="p-3">
+                                <div class="text-sm text-slate-600">
+                                    <?php echo htmlspecialchars($campaign['created_by_name']); ?>
+                                </div>
+                                <div class="text-xs text-slate-400">
+                                    <?php echo date('M d, Y', strtotime($campaign['created_at'])); ?>
+                                </div>
+                            </td>
+                            <td class="p-3 text-right">
+                                <div class="flex gap-2 justify-end">
+                                    <a href="campaign_details.php?id=<?php echo $campaign['id']; ?>" class="action-btn blue"
+                                        title="View Details">
+                                        <?php echo \EduCRM\Services\NavigationService::getIcon('eye', 16); ?>
+                                    </a>
+                                    <?php if ($campaign['status'] === 'draft' || $campaign['status'] === 'scheduled'): ?>
+                                        <button onclick="cancelCampaign(<?php echo $campaign['id']; ?>)" class="action-btn red"
+                                            title="Cancel">
+                                            <?php echo \EduCRM\Services\NavigationService::getIcon('x-circle', 16); ?>
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="6" class="p-8 text-center">
+                            <div class="flex flex-col items-center justify-center text-slate-400">
+                                <?php echo \EduCRM\Services\NavigationService::getIcon('message-square', 48); ?>
+                                <h3 class="mt-2 text-sm font-medium text-slate-900">No Campaigns Yet</h3>
+                                <p class="mt-1 text-sm text-slate-500">Create your first SMS campaign to get started.</p>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-3 gap-4 mb-4">
-                        <div class="text-center p-3 bg-emerald-50 rounded-lg">
-                            <div class="text-2xl font-bold text-emerald-700">
-                                <?php echo $campaign['delivered_count']; ?>
-                            </div>
-                            <div class="text-xs text-emerald-600">Delivered</div>
-                        </div>
-                        <div class="text-center p-3 bg-red-50 rounded-lg">
-                            <div class="text-2xl font-bold text-red-700">
-                                <?php echo $campaign['failed_count']; ?>
-                            </div>
-                            <div class="text-xs text-red-600">Failed</div>
-                        </div>
-                        <div class="text-center p-3 bg-slate-50 rounded-lg">
-                            <div class="text-2xl font-bold text-slate-700">$
-                                <?php echo number_format($campaign['total_cost'], 2); ?>
-                            </div>
-                            <div class="text-xs text-slate-600">Total Cost</div>
-                        </div>
-                    </div>
+                        </td>
+                    </tr>
                 <?php endif; ?>
-
-                <?php if ($campaign['scheduled_at'] && $campaign['status'] === 'scheduled'): ?>
-                    <div class="mb-4 p-3 bg-blue-50 rounded-lg">
-                        <p class="text-sm text-blue-700">
-                            📅 Scheduled for:
-                            <?php echo date('M d, Y H:i', strtotime($campaign['scheduled_at'])); ?>
-                        </p>
-                    </div>
-                <?php endif; ?>
-
-                <div class="text-sm text-slate-600 mb-4">
-                    <strong>Message:</strong>
-                    <?php echo htmlspecialchars(substr($campaign['message'], 0, 150)); ?>
-                    <?php echo strlen($campaign['message']) > 150 ? '...' : ''; ?>
-                </div>
-
-                <div class="flex gap-2">
-                    <?php if ($campaign['status'] === 'draft' || $campaign['status'] === 'scheduled'): ?>
-                        <button onclick="cancelCampaign(<?php echo $campaign['id']; ?>)"
-                            class="btn-secondary px-4 py-2 text-xs rounded-lg">
-                            Cancel
-                        </button>
-                    <?php endif; ?>
-                    <a href="campaign_details.php?id=<?php echo $campaign['id']; ?>"
-                        class="btn-secondary px-4 py-2 text-xs rounded-lg">
-                        View Details
-                    </a>
-                </div>
-            </div>
-        <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
-<?php else: ?>
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
-        <div class="text-6xl mb-4">📢</div>
-        <h3 class="text-lg font-semibold text-slate-800 mb-2">No Campaigns Yet</h3>
-        <p class="text-slate-600 mb-4">Create your first SMS campaign</p>
-        <button onclick="showCreateModal()" class="btn inline-block">+ New Campaign</button>
-    </div>
-<?php endif; ?>
+</div>
 
 <!-- Create Campaign Modal -->
 <div id="createModal"
@@ -232,6 +235,7 @@ require_once '../../includes/header.php';
                         <option value="sms">SMS</option>
                         <option value="whatsapp">WhatsApp</option>
                         <option value="viber">Viber</option>
+                        <option value="push">Push Notification</option>
                     </select>
                 </div>
 
@@ -315,22 +319,30 @@ require_once '../../includes/header.php';
     }
 
     function cancelCampaign(campaignId) {
-        if (!confirm('Are you sure you want to cancel this campaign?')) return;
-
-        fetch('cancel_campaign.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `id=${campaignId}`
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            });
+        Modal.show({
+            type: 'warning',
+            title: 'Cancel Campaign',
+            message: 'Are you sure you want to cancel this campaign? This action cannot be undone.',
+            confirmText: 'Cancel Campaign',
+            onConfirm: () => {
+                fetch('cancel_campaign.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `id=${campaignId}`
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            Toast.success('Campaign cancelled successfully');
+                            setTimeout(() => window.location.reload(), 500);
+                        } else {
+                            Modal.error(data.message, 'Error');
+                        }
+                    })
+                    .catch(err => Modal.error('Network error: ' + err.message, 'Connection Error'));
+            }
+        });
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

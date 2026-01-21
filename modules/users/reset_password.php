@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 requireAdmin();
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_password = $_POST['new_password'];
 
     if (strlen($new_password) < 6) {
-        $error = "Password must be at least 6 characters long.";
+        redirectWithAlert("reset_password.php?id=$user_id", "Password must be at least 6 characters long.", 'error');
     } else {
         $hash = password_hash($new_password, PASSWORD_DEFAULT);
         $update = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageDetails = ['title' => 'Reset Password'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 500px; margin: 0 auto;">
@@ -64,10 +64,17 @@ require_once '../../includes/header.php';
                     required>
                 <small style="color: grey;">A secure password has been pre-filled for you.</small>
             </div>
-            <button type="submit" class="btn">Update Password</button>
-            <a href="list.php" class="btn btn-secondary">Cancel</a>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                <button type="submit" class="btn">Update Password</button>
+                <a href="send_reset_email.php?id=<?php echo $user_id; ?>" class="btn"
+                    style="background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc;"
+                    title="Send password reset link to user's email">
+                    <?php echo \EduCRM\Services\NavigationService::getIcon('inbox', 16); ?> Email Reset Link
+                </a>
+                <a href="list.php" class="btn btn-secondary">Cancel</a>
+            </div>
         </form>
     <?php endif; ?>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

@@ -4,8 +4,8 @@
  * Sends test message to verify gateway configuration
  */
 
-require_once '../../config.php';
-require_once '../../includes/services/MessagingFactory.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 requireAdmin();
@@ -26,8 +26,8 @@ if (!$gatewayId || !$phone) {
 }
 
 try {
-    MessagingFactory::init($pdo);
-    $gateway = MessagingFactory::create($gatewayId);
+    \EduCRM\Services\MessagingFactory::init($pdo);
+    $gateway = \EduCRM\Services\MessagingFactory::create($gatewayId);
 
     $testMessage = "This is a test message from eduCRM. Gateway is working correctly!";
 

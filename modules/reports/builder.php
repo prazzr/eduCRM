@@ -1,10 +1,10 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/ReportService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
-$reportService = new ReportService($pdo);
+$reportService = new \EduCRM\Services\ReportService($pdo);
 
 // Get parameters
 $reportType = $_GET['type'] ?? null;
@@ -66,7 +66,7 @@ if (isset($_GET['export']) && $reportData) {
 }
 
 $pageDetails = ['title' => 'Report Builder'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="mb-6">
@@ -208,4 +208,4 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

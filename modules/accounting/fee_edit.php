@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 requireAdmin();
@@ -23,15 +23,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name) {
         $stmt = $pdo->prepare("UPDATE fee_types SET name = ?, default_amount = ? WHERE id = ?");
         $stmt->execute([$name, $amount, $id]);
-        redirectWithAlert("fee_types.php", "Fee Type updated!");
+        redirectWithAlert("fee_types.php", "Fee Type updated!", 'warning');
 
         $type['name'] = $name;
         $type['default_amount'] = $amount;
+    } else {
+        redirectWithAlert("fee_edit.php?id=$id", "Fee Name is required.", 'error');
     }
 }
 
 $pageDetails = ['title' => 'Edit Fee Type'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 500px; margin: 0 auto;">
@@ -58,4 +60,4 @@ require_once '../../includes/header.php';
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

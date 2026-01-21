@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 // If Student, redirect to their own ledger
@@ -15,16 +15,19 @@ requireRoles(['admin', 'accountant']);
 $students = $pdo->query("SELECT * FROM users WHERE role='student' ORDER BY name")->fetchAll();
 
 $pageDetails = ['title' => 'Financial Ledgers'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
     <h2>Student Financial Ledgers</h2>
-    <a href="fee_types.php" class="btn btn-secondary">Manage Fee Structure</a>
+    <a href="fee_types.php" class="btn btn-primary">Manage Fee Structure</a>
 </div>
 
 <div class="card" style="padding: 0;">
-    <table>
+    <div style="padding: 15px; border-bottom: 1px solid #eee;">
+        <input type="text" id="studentSearch" class="form-control" placeholder="Search by Student Name..." style="max-width: 300px;">
+    </div>
+    <table id="ledgerTable">
         <thead>
             <tr>
                 <th>Student Name</th>
@@ -48,4 +51,20 @@ require_once '../../includes/header.php';
     </table>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<script>
+    document.getElementById('studentSearch').addEventListener('keyup', function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('#ledgerTable tbody tr');
+
+        rows.forEach(row => {
+            let name = row.cells[0].textContent.toLowerCase();
+            if (name.includes(filter)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
+
+<?php require_once '../../templates/footer.php'; ?>

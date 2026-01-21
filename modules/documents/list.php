@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 $student_id = isset($_GET['student_id']) ? (int) $_GET['student_id'] : 0;
@@ -41,15 +41,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['doc'])) {
                 $path = 'uploads/documents/' . $filename;
                 $stmt = $pdo->prepare("INSERT INTO student_documents (student_id, title, file_path) VALUES (?, ?, ?)");
                 $stmt->execute([$student_id, $title, $path]);
-                $message = "Document uploaded successfully.";
+                redirectWithAlert("list.php?student_id=$student_id", "Document uploaded successfully.", "success");
             } else {
-                $error = "Failed to move uploaded file.";
+                redirectWithAlert("list.php?student_id=$student_id", "Upload failed.", "error");
             }
         } else {
-            $error = "Invalid file type. Only PDF, Images, and Docs allowed.";
+            redirectWithAlert("list.php?student_id=$student_id", "Invalid file type. Only PDF, Images, and Docs allowed.", "error");
         }
     } else {
-        $error = "Please select a file.";
+        redirectWithAlert("list.php?student_id=$student_id", "Please select a file.", "error");
     }
 }
 
@@ -57,9 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['doc'])) {
 if (isset($_GET['delete']) && !hasRole('student')) {
     $doc_id = (int) $_GET['delete'];
     $stmt = $pdo->prepare("DELETE FROM student_documents WHERE id = ?");
-    $stmt->execute([$doc_id]);
-    header("Location: list.php?student_id=" . $student_id);
-    exit;
+    redirectWithAlert("list.php?student_id=" . $student_id, "Document deleted successfully.", "danger");
 }
 
 // Fetch Documents
@@ -68,30 +66,21 @@ $docs->execute([$student_id]);
 $all_docs = $docs->fetchAll();
 
 $pageDetails = ['title' => 'Document Vault'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
     <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
-        <h2>Document Vault: <?php echo htmlspecialchars($student_info['name']); ?></h2>
+        <h2>Document Vault:
+            <?php echo htmlspecialchars($student_info['name']); ?>
+        </h2>
         <?php if (!$is_student): ?>
             <a href="../../modules/inquiries/list.php" class="btn btn-secondary" style="font-size: 12px;">&laquo; Back to
                 Inquiries/List</a>
         <?php endif; ?>
     </div>
 
-    <?php if ($message): ?>
-        <div style="background: #dcfce7; color: #166534; padding: 10px; border-radius: 6px; margin-bottom: 20px;">
-            <?php echo $message; ?>
-        </div>
-    <?php endif; ?>
-
     <?php renderFlashMessage(); ?>
-    <?php if ($error): ?>
-        <div style="background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 6px; margin-bottom: 20px;">
-            <?php echo $error; ?>
-        </div>
-    <?php endif; ?>
 
     <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 30px;">
 
@@ -141,8 +130,8 @@ require_once '../../includes/header.php';
                                 <div style="display: flex; gap: 10px; justify-content: center; margin-top: 5px;">
                                     <a href="edit.php?id=<?php echo $d['id']; ?>"
                                         style="font-size: 11px; color: var(--primary-color);">Edit</a>
-                                    <a href="?student_id=<?php echo $student_id; ?>&delete=<?php echo $d['id']; ?>"
-                                        onclick="return confirm('Delete?')" style="color: red; font-size: 11px;">Delete</a>
+                                    <a href="#" onclick="confirmDelete(<?php echo $d['id']; ?>)"
+                                        style="color: red; font-size: 11px;">Delete</a>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -155,4 +144,18 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>
+
+<script>
+    function confirmDelete(id) {
+        Modal.show({
+            type: 'error',
+            title: 'Delete Document?',
+            message: 'Are you sure you want to delete this document? This action cannot be undone.',
+            confirmText: 'Yes, Delete It',
+            onConfirm: function () {
+                window.location.href = '?student_id=<?php echo $student_id; ?>&delete=' + id;
+            }
+        });
+    }
+</script>

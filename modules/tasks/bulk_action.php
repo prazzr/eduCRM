@@ -4,9 +4,9 @@
  * Processes bulk operations on selected tasks
  */
 
-require_once '../../config.php';
-require_once '../../includes/services/BulkActionService.php';
-require_once '../../includes/services/TaskService.php';
+require_once '../../app/bootstrap.php';
+
+
 
 requireLogin();
 
@@ -18,8 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$bulkService = new BulkActionService($pdo);
-$taskService = new TaskService($pdo);
+$bulkService = new \EduCRM\Services\BulkActionService($pdo);
+$taskService = new \EduCRM\Services\TaskService($pdo);
 
 $action = $_POST['action'] ?? '';
 $taskIds = $_POST['task_ids'] ?? [];

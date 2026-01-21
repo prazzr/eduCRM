@@ -1,8 +1,8 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
 $templateId = $_GET['id'] ?? null;
 

@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 $material_id = isset($_GET['material_id']) ? (int) $_GET['material_id'] : 0;
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
     $grades = $_POST['grades'] ?? []; // student_id => mark
 
     if (!$roster_id) {
-        $message = "Please select a Daily Session date to sync these marks.";
+        redirectWithAlert("review_submissions.php?material_id=$material_id", "Please select a Daily Session date to sync these marks.", 'error');
     } else {
         try {
             $pdo->beginTransaction();
@@ -67,10 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
             }
 
             $pdo->commit();
-            $message = "Grades saved and synced to Daily Journal!";
+            redirectWithAlert("review_submissions.php?material_id=$material_id", "Grades saved and synced to Daily Journal!", 'success');
         } catch (Exception $e) {
             $pdo->rollBack();
-            $message = "Error: " . $e->getMessage();
+            redirectWithAlert("review_submissions.php?material_id=$material_id", "Error: " . $e->getMessage(), 'error');
         }
     }
 }
@@ -93,7 +93,7 @@ $rosters->execute([$class_id]);
 $daily_rosters = $rosters->fetchAll();
 
 $pageDetails = ['title' => 'Review: ' . $material['title']];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
@@ -109,11 +109,7 @@ require_once '../../includes/header.php';
         <a href="classroom.php?class_id=<?php echo $class_id; ?>" class="btn btn-secondary">← Back to Classroom</a>
     </div>
 
-    <?php if ($message): ?>
-        <div style="background: #e0f2fe; color: #0284c7; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
-            <?php echo $message; ?>
-        </div>
-    <?php endif; ?>
+    <?php renderFlashMessage(); ?>
 
     <form method="POST">
         <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 20px;">
@@ -181,4 +177,4 @@ require_once '../../includes/header.php';
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

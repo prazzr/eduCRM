@@ -1,30 +1,32 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/TaskService.php';
+/**
+ * Task Delete
+ * Handles task deletion with permission checks
+ */
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
-$taskService = new TaskService($pdo);
+$taskService = new \EduCRM\Services\TaskService($pdo);
 
-// Get task ID
-$taskId = $_GET['id'] ?? 0;
+// Validate task ID parameter
+$taskId = requireIdParam();
 $task = $taskService->getTask($taskId);
 
 if (!$task) {
-    header('Location: list.php');
-    exit;
+    redirectWithAlert("list.php", "Task not found", "danger");
 }
 
-// Check permission (admin or assigned user)
+// Check permission (admin or assigned user can delete)
 if (!hasRole('admin') && $task['assigned_to'] != $_SESSION['user_id']) {
-    header('Location: list.php');
-    exit;
+    redirectWithAlert("list.php", "You don't have permission to delete this task", "danger");
 }
 
 // Delete the task
 if ($taskService->deleteTask($taskId)) {
-    header('Location: list.php?deleted=1');
+    logAction('task_delete', "Deleted task ID: {$taskId}");
+    redirectWithAlert("list.php", "Task deleted successfully!", "danger");
 } else {
-    header('Location: list.php?error=delete_failed');
+    redirectWithAlert("list.php", "Failed to delete task", "danger");
 }
-exit;

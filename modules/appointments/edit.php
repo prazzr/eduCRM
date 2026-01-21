@@ -1,6 +1,6 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/AppointmentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
@@ -10,7 +10,7 @@ if (!hasRole('admin') && !hasRole('counselor')) {
     exit;
 }
 
-$appointmentService = new AppointmentService($pdo);
+$appointmentService = new \EduCRM\Services\AppointmentService($pdo);
 
 // Get appointment ID
 $appointmentId = $_GET['id'] ?? 0;
@@ -42,9 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $notes = trim($_POST['notes'] ?? '');
 
     if (empty($title)) {
-        $error = 'Appointment title is required.';
+        redirectWithAlert("edit.php?id=$appointmentId", 'Appointment title is required.', 'error');
     } elseif (empty($appointment_date)) {
-        $error = 'Appointment date and time is required.';
+        redirectWithAlert("edit.php?id=$appointmentId", 'Appointment date and time is required.', 'error');
     } else {
         $updateData = [
             'title' => $title,
@@ -58,17 +58,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         if ($appointmentService->updateAppointment($appointmentId, $updateData)) {
-            $success = 'Appointment updated successfully!';
-            // Refresh appointment data
-            $appointment = $appointmentService->getAppointment($appointmentId);
+            redirectWithAlert("edit.php?id=$appointmentId", 'Appointment updated successfully!', 'success');
         } else {
-            $error = 'Failed to update appointment. Please try again.';
+            redirectWithAlert("edit.php?id=$appointmentId", 'Failed to update appointment. Please try again.', 'error');
         }
     }
 }
 
 $pageDetails = ['title' => 'Edit Appointment'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="mb-6 flex justify-between items-center">
@@ -79,17 +77,7 @@ require_once '../../includes/header.php';
     <a href="list.php" class="btn-secondary px-4 py-2 rounded-lg font-medium">← Back to List</a>
 </div>
 
-<?php if ($error): ?>
-    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-        <?php echo htmlspecialchars($error); ?>
-    </div>
-<?php endif; ?>
-
-<?php if ($success): ?>
-    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg mb-6">
-        <?php echo htmlspecialchars($success); ?>
-    </div>
-<?php endif; ?>
+<?php renderFlashMessage(); ?>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Main Form -->
@@ -141,10 +129,10 @@ require_once '../../includes/header.php';
                                 minutes</option>
                             <option value="60" <?php echo $appointment['duration_minutes'] == 60 ? 'selected' : ''; ?>>1
                                 hour</option>
-                            <option value="90" <?php echo $appointment['duration_minutes'] == 90 ? 'selected' : ''; ?>
-                                >1.5 hours</option>
-                            <option value="120" <?php echo $appointment['duration_minutes'] == 120 ? 'selected' : ''; ?>
-                                >2 hours</option>
+                            <option value="90" <?php echo $appointment['duration_minutes'] == 90 ? 'selected' : ''; ?>>1.5
+                                hours</option>
+                            <option value="120" <?php echo $appointment['duration_minutes'] == 120 ? 'selected' : ''; ?>>2
+                                hours</option>
                         </select>
                     </div>
                 </div>
@@ -180,12 +168,12 @@ require_once '../../includes/header.php';
                     </label>
                     <select id="status" name="status"
                         class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                        <option value="scheduled" <?php echo $appointment['status'] === 'scheduled' ? 'selected' : ''; ?>
-                            >Scheduled</option>
-                        <option value="completed" <?php echo $appointment['status'] === 'completed' ? 'selected' : ''; ?>
-                            >Completed</option>
-                        <option value="cancelled" <?php echo $appointment['status'] === 'cancelled' ? 'selected' : ''; ?>
-                            >Cancelled</option>
+                        <option value="scheduled" <?php echo $appointment['status'] === 'scheduled' ? 'selected' : ''; ?>>
+                            Scheduled</option>
+                        <option value="completed" <?php echo $appointment['status'] === 'completed' ? 'selected' : ''; ?>>
+                            Completed</option>
+                        <option value="cancelled" <?php echo $appointment['status'] === 'cancelled' ? 'selected' : ''; ?>>
+                            Cancelled</option>
                         <option value="no_show" <?php echo $appointment['status'] === 'no_show' ? 'selected' : ''; ?>>No
                             Show</option>
                     </select>
@@ -264,4 +252,4 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

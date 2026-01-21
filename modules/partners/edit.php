@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 if (hasRole('student')) {
@@ -27,17 +27,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name) {
         $stmt = $pdo->prepare("UPDATE partners SET name = ?, country = ?, type = ?, website = ? WHERE id = ?");
         $stmt->execute([$name, $country, $type, $website, $id]);
-        redirectWithAlert("list.php", "Partner updated!");
+        redirectWithAlert("list.php", "Partner updated!", 'warning');
 
         $partner['name'] = $name;
         $partner['country'] = $country;
         $partner['type'] = $type;
         $partner['website'] = $website;
+    } else {
+        redirectWithAlert("edit.php?id=$id", "Institution name is required.", 'error');
     }
 }
 
 $pageDetails = ['title' => 'Edit Partner'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 500px; margin: 0 auto;">
@@ -78,4 +80,4 @@ require_once '../../includes/header.php';
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

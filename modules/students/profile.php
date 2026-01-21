@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 $student_id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
@@ -9,12 +9,16 @@ if (!$student_id)
 $message = '';
 $msg_type = 'success'; // or 'error'
 
-// Fetch Student Info - Robust multi-role support
+// Fetch Student Info - Robust multi-role support (with FK JOINs)
 $stmt = $pdo->prepare("
-    SELECT u.* 
+    SELECT u.*, 
+           c.name as country_name,
+           el.name as education_level_name
     FROM users u 
     JOIN user_roles ur ON u.id = ur.user_id 
     JOIN roles r ON ur.role_id = r.id 
+    LEFT JOIN countries c ON u.country_id = c.id
+    LEFT JOIN education_levels el ON u.education_level_id = el.id
     WHERE u.id = ? AND r.name = 'student'
 ");
 $stmt->execute([$student_id]);
@@ -96,8 +100,16 @@ $logs_stmt = $pdo->prepare($log_sql);
 $logs_stmt->execute($log_params);
 $daily_logs = $logs_stmt->fetchAll();
 
-// Fetch Visa Workflow
-$visa_stmt = $pdo->prepare("SELECT * FROM visa_workflows WHERE student_id = ?");
+// Fetch Visa Workflow (with FK JOINs)
+$visa_stmt = $pdo->prepare("
+    SELECT vw.*, 
+           c.name as country_name,
+           vs.name as stage_name
+    FROM visa_workflows vw
+    LEFT JOIN countries c ON vw.country_id = c.id
+    LEFT JOIN visa_stages vs ON vw.stage_id = vs.id
+    WHERE vw.student_id = ?
+");
 $visa_stmt->execute([$student_id]);
 $visa_workflow = $visa_stmt->fetch();
 
@@ -151,8 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_score']) && !hasR
         header("Location: profile.php?id=" . $student_id . "&msg=score_added");
         exit;
     } catch (PDOException $e) {
-        $message = "Score Error: " . $e->getMessage();
-        $msg_type = 'error';
+        redirectWithAlert("profile.php?id=$student_id&tab=classes", "Score Error: " . $e->getMessage(), 'error');
     }
 }
 
@@ -174,8 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enroll_class']) && !h
         header("Location: profile.php?id=" . $student_id . "&msg=enrolled");
         exit;
     } catch (Exception $e) {
-        $message = "Enrollment Error: " . $e->getMessage();
-        $msg_type = 'error';
+        redirectWithAlert("profile.php?id=$student_id&tab=classes", "Enrollment Error: " . $e->getMessage(), 'error');
     }
 }
 
@@ -209,8 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_fee']) && hasR
         header("Location: profile.php?id=$student_id&tab=ledger&msg=fee_added");
         exit;
     } catch (Exception $e) {
-        $message = "Fee Error: " . $e->getMessage();
-        $msg_type = 'error';
+        redirectWithAlert("profile.php?id=$student_id&tab=ledger", "Fee Error: " . $e->getMessage(), 'error');
     }
 }
 
@@ -244,8 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_payment']) && 
         exit;
     } catch (Exception $e) {
         $pdo->rollBack();
-        $message = "Payment Error: " . $e->getMessage();
-        $msg_type = 'error';
+        redirectWithAlert("profile.php?id=$student_id&tab=ledger", "Payment Error: " . $e->getMessage(), 'error');
     }
 }
 
@@ -321,8 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['doc'])) {
             exit;
         }
     } catch (Exception $e) {
-        $message = "Document Error: " . $e->getMessage();
-        $msg_type = 'error';
+        redirectWithAlert("profile.php?id=$student_id&tab=docs", "Document Error: " . $e->getMessage(), 'error');
     }
 }
 
@@ -354,14 +361,19 @@ $logs = $pdo->prepare("
 $logs->execute([$student_id]);
 $timelines = $logs->fetchAll();
 
-// Fetch Available Classes (for enrollment)
-$all_classes = $pdo->query("
+// Fetch Available Classes (for enrollment) - EXCLUDE already enrolled classes
+$available_classes_stmt = $pdo->prepare("
     SELECT c.id, c.name as class_name, co.name as course_name 
     FROM classes c 
     JOIN courses co ON c.course_id = co.id 
     WHERE c.status = 'active' 
+    AND c.id NOT IN (
+        SELECT class_id FROM enrollments WHERE student_id = ?
+    )
     ORDER BY co.name, c.name
-")->fetchAll();
+");
+$available_classes_stmt->execute([$student_id]);
+$all_classes = $available_classes_stmt->fetchAll();
 
 // Fetch Enrollment Info (Classes) with individual performance stats
 $classes = $pdo->prepare("
@@ -393,7 +405,7 @@ $docs->execute([$student_id]);
 $my_docs = $docs->fetchAll();
 
 $pageDetails = ['title' => 'Student Profile'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <?php if ($message): ?>
@@ -406,25 +418,23 @@ require_once '../../includes/header.php';
 <?php endif; ?>
 
 <!-- Tab Navigation -->
-<div
-    style="display: flex; gap: 5px; margin-bottom: 25px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; overflow-x: auto;">
+<div class="profile-tabs">
     <?php
     $tabs = [
-        'profile' => '👤 Profile',
-        'ledger' => '💰 Ledger',
-        'docs' => '📁 My Docs',
-        'classes' => '🎓 Classes',
-        'visa' => '✈️ Visa',
-        'logs' => '📝 Logs'
+        'profile' => ['icon' => 'user', 'label' => 'Profile'],
+        'ledger' => ['icon' => 'file-text', 'label' => 'Ledger'],
+        'docs' => ['icon' => 'folder', 'label' => 'My Docs'],
+        'classes' => ['icon' => 'book', 'label' => 'Classes'],
+        'visa' => ['icon' => 'send', 'label' => 'Visa'],
+        'logs' => ['icon' => 'clock', 'label' => 'Logs']
     ];
-    foreach ($tabs as $t_key => $t_name):
+    foreach ($tabs as $t_key => $t_info):
         $active = ($tab === $t_key);
         ?>
-        <a href="?id=<?php echo $student_id; ?>&tab=<?php echo $t_key; ?>" style="text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px;
-                  background: <?php echo $active ? 'var(--primary-color)' : 'transparent'; ?>;
-                  color: <?php echo $active ? '#fff' : '#64748b'; ?>;
-                  transition: all 0.2s;">
-            <?php echo $t_name; ?>
+        <a href="?id=<?php echo $student_id; ?>&tab=<?php echo $t_key; ?>"
+            class="profile-tab <?php echo $active ? 'active' : ''; ?>">
+            <?php echo \EduCRM\Services\NavigationService::getIcon($t_info['icon'], 16); ?>
+            <span><?php echo $t_info['label']; ?></span>
         </a>
     <?php endforeach; ?>
 </div>
@@ -446,18 +456,21 @@ require_once '../../includes/header.php';
                 <p><strong>Phone:</strong> <?php echo htmlspecialchars($student['phone']); ?></p>
             </div>
             <div>
-                <p><strong>Country:</strong> <?php echo htmlspecialchars($student['country'] ?: 'N/A'); ?></p>
-                <p><strong>Level:</strong> <?php echo htmlspecialchars($student['education_level']); ?></p>
+                <p><strong>Country:</strong>
+                    <?php echo htmlspecialchars($student['country_name'] ?? $student['country'] ?: 'N/A'); ?></p>
+                <p><strong>Level:</strong>
+                    <?php echo htmlspecialchars($student['education_level_name'] ?? $student['education_level'] ?: 'N/A'); ?>
+                </p>
                 <p><strong>Passport:</strong> <?php echo htmlspecialchars($student['passport_number'] ?: 'N/A'); ?></p>
             </div>
         </div>
 
         <?php if (!hasRole('student')): ?>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; display: flex; gap: 10px;">
-                <a href="../users/reset_password.php?id=<?php echo $student_id; ?>" class="btn btn-secondary">Direct Password
+                <a href="../users/reset_password.php?id=<?php echo $student_id; ?>" class="btn btn-primary">Direct Password
                     Reset</a>
-                <a href="../users/send_reset_email.php?id=<?php echo $student_id; ?>" class="btn btn-secondary"
-                    style="background: #e0f2fe; color: #0369a1; border-color: #7dd3fc;">Email Reset Link</a>
+                <a href="../users/send_reset_email.php?id=<?php echo $student_id; ?>" class="btn btn-primary">Email Reset
+                    Link</a>
             </div>
         <?php endif; ?>
     </div>
@@ -480,7 +493,7 @@ require_once '../../includes/header.php';
                     <input type="text" name="description" class="form-control" placeholder="Extra Note"
                         style="margin-bottom:10px;">
                     <input type="date" name="due_date" class="form-control" style="margin-bottom:10px;">
-                    <button type="submit" class="btn">Assign Fee</button>
+                    <button type="submit" class="btn btn-primary">Assign Fee</button>
                 </form>
             </div>
             <div class="card" style="margin-bottom:0; background: #f0fdf4; border: 1px dashed #86efac;">
@@ -499,10 +512,12 @@ require_once '../../includes/header.php';
                         <input type="number" step="0.01" name="amount" class="form-control" placeholder="Paid Amt" required>
                         <select name="method" class="form-control">
                             <option value="Cash">Cash</option>
-                            <option value="Bank">Bank</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Card">Card</option>
+                            <option value="Other">Other</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn" style="background: #16a34a;">Submit Payment</button>
+                    <button type="submit" class="btn btn-primary">Submit Payment</button>
                 </form>
             </div>
         </div>
@@ -521,12 +536,24 @@ require_once '../../includes/header.php';
                 </tr>
             </thead>
             <tbody>
+                <?php $total_outstanding = 0; ?>
                 <?php foreach ($all_fees as $f): ?>
                     <tr>
                         <td><?php echo date('Y-m-d', strtotime($f['created_at'])); ?></td>
                         <td><strong><?php echo $f['fee_type']; ?></strong><br><small><?php echo htmlspecialchars($f['description']); ?></small>
                         </td>
                         <td>$<?php echo number_format($f['amount'], 2); ?></td>
+                        <?php
+                        // Calculate remaining for total
+                        $pmt_stmt = $pdo->prepare("SELECT SUM(amount) FROM payments WHERE student_fee_id = ?");
+                        $pmt_stmt->execute([$f['id']]);
+                        $paid_amt = $pmt_stmt->fetchColumn() ?: 0;
+
+                        $balance = $f['amount'] - $paid_amt;
+                        if ($f['status'] != 'paid') {
+                            $total_outstanding += $balance;
+                        }
+                        ?>
                         <td>
                             <span class="status-badge"
                                 style="background: <?php echo $f['status'] == 'paid' ? '#dcfce7' : '#fee2e2'; ?>;">
@@ -542,6 +569,17 @@ require_once '../../includes/header.php';
                     </tr>
                 <?php endforeach; ?>
             </tbody>
+            </tbody>
+            <tfoot>
+                <tr style="background-color: #f8fafc; border-top: 2px solid #e2e8f0;">
+                    <td colspan="4" style="text-align: right; padding: 15px; font-weight: bold; color: #475569;">
+                        Total Remaining Balance:
+                    </td>
+                    <td style="padding: 15px; font-weight: bold; color: #dc2626; font-size: 1.1em;">
+                        $<?php echo number_format($total_outstanding, 2); ?>
+                    </td>
+                </tr>
+            </tfoot>
         </table>
     </div>
 
@@ -567,7 +605,9 @@ require_once '../../includes/header.php';
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px;">
                 <?php foreach ($my_docs as $d): ?>
                     <div style="border:1px solid #e2e8f0; padding:10px; border-radius:8px; text-align:center;">
-                        <div style="font-size:30px;">📄</div>
+                        <div style="color: var(--primary-color); margin-bottom: 5px;">
+                            <?php echo \EduCRM\Services\NavigationService::getIcon('file-text', 32); ?>
+                        </div>
                         <div style="font-size:12px; font-weight:bold; margin:5px 0;">
                             <?php echo htmlspecialchars($d['title']); ?>
                         </div>
@@ -622,18 +662,42 @@ require_once '../../includes/header.php';
             <?php if (!hasRole('student')): ?>
                 <div class="card">
                     <h4>Enroll in Batch</h4>
-                    <form method="POST">
+                    <form method="POST" id="classEnrollForm">
                         <input type="hidden" name="enroll_class" value="1">
-                        <select name="class_id" class="form-control" style="margin-bottom:10px;">
-                            <option value="">Select Batch...</option>
-                            <?php foreach ($all_classes as $ac): ?>
-                                <option value="<?php echo $ac['id']; ?>">
-                                    <?php echo htmlspecialchars($ac['course_name'] . ' - ' . $ac['class_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button type="submit" class="btn">Enroll Student</button>
+                        <input type="hidden" name="class_id" id="selectedClassId" value="">
+                        <div style="position: relative; margin-bottom: 10px;">
+                            <input type="text" id="classSearch" class="form-control"
+                                placeholder="🔍 Search batch by course or class name..." autocomplete="off">
+                        </div>
+                        <button type="submit" class="btn" id="classEnrollBtn" disabled>Enroll Student</button>
                     </form>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function () {
+                            const classData = <?php echo json_encode(array_map(function ($c) {
+                                return [
+                                    'id' => $c['id'],
+                                    'name' => $c['course_name'] . ' - ' . $c['class_name'],
+                                    'course' => $c['course_name']
+                                ];
+                            }, $all_classes)); ?>;
+
+                            new SearchableDropdown({
+                                inputId: 'classSearch',
+                                hiddenInputId: 'selectedClassId',
+                                data: classData,
+                                displayField: 'name',
+                                secondaryField: 'course',
+                                submitBtnId: 'classEnrollBtn'
+                            });
+
+                            document.getElementById('classEnrollForm').addEventListener('submit', function (e) {
+                                if (!document.getElementById('selectedClassId').value) {
+                                    e.preventDefault();
+                                    alert('Please select a batch from the list');
+                                }
+                            });
+                        });
+                    </script>
                 </div>
             <?php endif; ?>
             <div class="card">
@@ -664,7 +728,7 @@ require_once '../../includes/header.php';
                                 <div style="display: flex; gap: 5px;">
                                     <a href="enrollment_details.php?student_id=<?php echo $student_id; ?>&class_id=<?php echo $mc['class_id']; ?>"
                                         title="Full Details" style="text-decoration:none; font-size: 14px;"
-                                        onclick="event.stopPropagation()">ℹ️</a>
+                                        onclick="event.stopPropagation()"><?php echo \EduCRM\Services\NavigationService::getIcon('eye', 14); ?></a>
                                     <a href="?id=<?php echo $student_id; ?>&tab=classes&unenroll=<?php echo $mc['class_id']; ?>"
                                         style="color:#cbd5e1; text-decoration:none; font-size: 20px; line-height: 1;"
                                         onclick="event.stopPropagation(); return confirm('Remove student from this class?')">×</a>
@@ -764,7 +828,7 @@ require_once '../../includes/header.php';
                                 style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: bold;">Destination
                                 Country</label>
                             <div style="font-size: 20px; font-weight: bold; color: #0f172a;">
-                                <?php echo htmlspecialchars($visa_workflow['country']); ?>
+                                <?php echo htmlspecialchars($visa_workflow['country_name'] ?? $visa_workflow['country'] ?? 'N/A'); ?>
                             </div>
                         </div>
                         <div>
@@ -774,7 +838,7 @@ require_once '../../includes/header.php';
                             <div style="margin-top: 5px;">
                                 <span class="status-badge"
                                     style="background: var(--primary-color); color: #fff; font-size: 16px; padding: 5px 15px;">
-                                    <?php echo htmlspecialchars($visa_workflow['current_stage']); ?>
+                                    <?php echo htmlspecialchars($visa_workflow['stage_name'] ?? $visa_workflow['current_stage'] ?? 'N/A'); ?>
                                 </span>
                             </div>
                         </div>
@@ -824,7 +888,9 @@ require_once '../../includes/header.php';
                 </div>
             <?php else: ?>
                 <div style="text-align: center; padding: 40px; color: #64748b;">
-                    <div style="font-size: 48px; margin-bottom: 20px;">ℹ️</div>
+                    <div style="color: #cbd5e1; margin-bottom: 20px;">
+                        <?php echo \EduCRM\Services\NavigationService::getIcon('alert-circle', 48); ?>
+                    </div>
                     <p>No visa application has been started for this student yet.</p>
                 </div>
             <?php endif; ?>
@@ -839,10 +905,10 @@ require_once '../../includes/header.php';
                 <input type="hidden" name="add_log" value="1">
                 <div style="display:flex; gap:10px;">
                     <select name="type" class="form-control" style="width:120px;">
-                        <option value="call">📞 Call</option>
-                        <option value="email">📧 Email</option>
-                        <option value="note">📝 Note</option>
-                        <option value="meeting">👥 Meeting</option>
+                        <option value="call">Call</option>
+                        <option value="email">Email</option>
+                        <option value="note">Note</option>
+                        <option value="meeting">Meeting</option>
                     </select>
                     <input type="text" name="message" class="form-control" placeholder="Details..." required>
                     <button type="submit" class="btn">Log Activity</button>
@@ -857,8 +923,14 @@ require_once '../../includes/header.php';
                 <div style="display:flex; justify-content:space-between;">
                     <strong>
                         <?php
-                        $icons = ['call' => '📞', 'email' => '📧', 'meeting' => '👥', 'note' => '📝'];
-                        echo $icons[$log['type']] ?? '•';
+                        $icons = [
+                            'call' => 'phone',
+                            'email' => 'mail',
+                            'meeting' => 'users',
+                            'note' => 'file-text'
+                        ];
+                        $iconName = $icons[$log['type']] ?? 'circle';
+                        echo \EduCRM\Services\NavigationService::getIcon($iconName, 16);
                         ?>
                         <?php echo ucfirst($log['type']); ?>
                     </strong>
@@ -879,4 +951,4 @@ require_once '../../includes/header.php';
     <?php endif; ?>
 <?php endif; ?>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

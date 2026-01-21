@@ -1,14 +1,14 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/ReportingService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
 $pageDetails = ['title' => 'Reports & Analytics'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 
-$reportingService = new ReportingService($pdo);
+$reportingService = new \EduCRM\Services\ReportingService($pdo);
 
 // Get date range from query params or default to last 30 days
 $range = $_GET['range'] ?? '30';
@@ -155,13 +155,17 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
     <!-- Task Completion Trend -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 class="text-lg font-bold text-slate-800 mb-4">Task Completion Trend</h3>
-        <canvas id="taskTrendChart" height="250"></canvas>
+        <div class="relative h-[250px]">
+            <canvas id="taskTrendChart"></canvas>
+        </div>
     </div>
 
     <!-- Appointment Status Distribution -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 class="text-lg font-bold text-slate-800 mb-4">Appointment Status</h3>
-        <canvas id="appointmentStatusChart" height="250"></canvas>
+        <div class="relative h-[250px]">
+            <canvas id="appointmentStatusChart"></canvas>
+        </div>
     </div>
 </div>
 
@@ -170,13 +174,17 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
     <!-- Lead Conversion Funnel -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 class="text-lg font-bold text-slate-800 mb-4">Lead Conversion Funnel</h3>
-        <canvas id="conversionFunnelChart" height="250"></canvas>
+        <div class="relative h-[250px]">
+            <canvas id="conversionFunnelChart"></canvas>
+        </div>
     </div>
 
     <!-- Priority Distribution -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <h3 class="text-lg font-bold text-slate-800 mb-4">Lead Priority Distribution</h3>
-        <canvas id="priorityDistChart" height="250"></canvas>
+        <div class="relative h-[250px]">
+            <canvas id="priorityDistChart"></canvas>
+        </div>
     </div>
 </div>
 
@@ -251,8 +259,7 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
     </div>
 </div>
 
-<!-- Chart.js CDN -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Chart.js loaded via header.php -->
 
 <script>
     // Task Completion Trend Chart
@@ -261,26 +268,26 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
         type: 'line',
         data: {
             labels: <?php echo json_encode(array_column($taskStats['trend_data'], 'date')); ?>,
-                datasets: [{
-                    label: 'Tasks Completed',
-                    data: <?php echo json_encode(array_column($taskStats['trend_data'], 'count')); ?>,
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    tension: 0.4,
-                    fill: true
-        }]
-    },
-    options: {
-        responsive: true,
-            maintainAspectRatio: false,
-                plugins: {
-            legend: { display: false }
+            datasets: [{
+                label: 'Tasks Completed',
+                data: <?php echo json_encode(array_column($taskStats['trend_data'], 'count')); ?>,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
         },
-        scales: {
-            y: { beginAtZero: true }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
         }
-    }
-});
+    });
 
     // Appointment Status Chart
     const appointmentStatusCtx = document.getElementById('appointmentStatusChart').getContext('2d');
@@ -290,19 +297,19 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
             labels: ['Completed', 'Scheduled', 'Cancelled', 'No Show'],
             datasets: [{
                 data: [
-                <?php echo $appointmentStats['completed']; ?>,
-                <?php echo $appointmentStats['scheduled']; ?>,
-                <?php echo $appointmentStats['cancelled']; ?>,
-                <?php echo $appointmentStats['no_show']; ?>
-            ],
-    backgroundColor: ['#10b981', '#3b82f6', '#ef4444', '#f59e0b']
-        }]
-    },
-    options: {
-        responsive: true,
+                    <?php echo $appointmentStats['completed']; ?>,
+                    <?php echo $appointmentStats['scheduled']; ?>,
+                    <?php echo $appointmentStats['cancelled']; ?>,
+                    <?php echo $appointmentStats['no_show']; ?>
+                ],
+                backgroundColor: ['#10b981', '#3b82f6', '#ef4444', '#f59e0b']
+            }]
+        },
+        options: {
+            responsive: true,
             maintainAspectRatio: false
-    }
-});
+        }
+    });
 
     // Conversion Funnel Chart
     const conversionFunnelCtx = document.getElementById('conversionFunnelChart').getContext('2d');
@@ -313,25 +320,25 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
             datasets: [{
                 label: 'Inquiries',
                 data: [
-                <?php echo $leadFunnel['new']; ?>,
-                <?php echo $leadFunnel['contacted']; ?>,
-                <?php echo $leadFunnel['converted']; ?>,
-                <?php echo $leadFunnel['closed']; ?>
-            ],
-    backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#64748b']
-        }]
-    },
-    options: {
-        responsive: true,
-            maintainAspectRatio: false,
-                plugins: {
-            legend: { display: false }
+                    <?php echo $leadFunnel['new']; ?>,
+                    <?php echo $leadFunnel['contacted']; ?>,
+                    <?php echo $leadFunnel['converted']; ?>,
+                    <?php echo $leadFunnel['closed']; ?>
+                ],
+                backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#64748b']
+            }]
         },
-        scales: {
-            y: { beginAtZero: true }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
         }
-    }
-});
+    });
 
     // Priority Distribution Chart
     const priorityDistCtx = document.getElementById('priorityDistChart').getContext('2d');
@@ -339,16 +346,16 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
         type: 'pie',
         data: {
             labels: <?php echo json_encode(array_column($priorityDist, 'priority')); ?>,
-                datasets: [{
-                    data: <?php echo json_encode(array_column($priorityDist, 'count')); ?>,
-                    backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6']
-        }]
-    },
-    options: {
-        responsive: true,
+            datasets: [{
+                data: <?php echo json_encode(array_column($priorityDist, 'count')); ?>,
+                backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6']
+            }]
+        },
+        options: {
+            responsive: true,
             maintainAspectRatio: false
-    }
-});
+        }
+    });
 
     // Export to CSV
     function exportToCSV() {
@@ -368,4 +375,4 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

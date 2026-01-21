@@ -1,11 +1,11 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/DocumentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 requireAdmin();
 
-$documentService = new DocumentService($pdo);
+$documentService = new \EduCRM\Services\DocumentService($pdo);
 
 // Handle template creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -28,12 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ]);
 
             if ($result) {
-                $_SESSION['flash_message'] = 'Template created successfully';
-                $_SESSION['flash_type'] = 'success';
+                redirectWithAlert('templates.php', 'Template created successfully', 'success');
             }
         } catch (Exception $e) {
-            $_SESSION['flash_message'] = 'Error: ' . $e->getMessage();
-            $_SESSION['flash_type'] = 'error';
+            redirectWithAlert('templates.php', 'Error: ' . $e->getMessage(), 'error');
         }
     }
 }
@@ -50,7 +48,7 @@ $templates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $categories = $documentService->getCategories();
 
 $pageDetails = ['title' => 'Document Templates'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="mb-6 flex justify-between items-center">
@@ -244,4 +242,4 @@ require_once '../../includes/header.php';
     });
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

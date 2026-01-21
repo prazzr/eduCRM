@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 $student_id = isset($_GET['student_id']) ? (int) $_GET['student_id'] : 0;
@@ -131,7 +131,7 @@ if ($next_month > 12) {
 
 
 $pageDetails = ['title' => 'Enrollment Detail - ' . htmlspecialchars($details['student_name'])];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <style>
@@ -347,4 +347,4 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

@@ -1,5 +1,5 @@
 <?php
-require_once 'config.php';
+require_once 'app/bootstrap.php';
 requireLogin();
 
 // 1. Validate Input

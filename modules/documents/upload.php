@@ -1,10 +1,10 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/DocumentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
-$documentService = new DocumentService($pdo);
+$documentService = new \EduCRM\Services\DocumentService($pdo);
 
 // Get entity info from query params
 $entityType = $_GET['entity_type'] ?? 'general';
@@ -30,20 +30,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
 
             // Redirect back to entity or document list
             if ($entityId) {
-                header("Location: list.php?entity_type=$entityType&entity_id=$entityId");
+                redirectWithAlert("list.php?entity_type=$entityType&entity_id=$entityId", "Document uploaded successfully", "success");
             } else {
-                header("Location: list.php");
+                redirectWithAlert("list.php", "Document uploaded successfully", "success");
             }
-            exit;
         }
     } catch (Exception $e) {
-        $_SESSION['flash_message'] = 'Error: ' . $e->getMessage();
-        $_SESSION['flash_type'] = 'error';
+        $errorUrl = "upload.php";
+        if ($entityId) {
+            $errorUrl .= "?entity_type=$entityType&entity_id=$entityId";
+        }
+        redirectWithAlert($errorUrl, 'Error: ' . $e->getMessage(), 'error');
     }
 }
 
 $pageDetails = ['title' => 'Upload Document'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 
 $categories = $documentService->getCategories();
 ?>
@@ -234,4 +236,4 @@ $categories = $documentService->getCategories();
     });
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

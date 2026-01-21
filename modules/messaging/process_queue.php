@@ -1,9 +1,9 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/MessagingFactory.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
 header('Content-Type: application/json');
 
@@ -13,10 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 try {
-    MessagingFactory::init($pdo);
+    \EduCRM\Services\MessagingFactory::init($pdo);
 
     // Get first active gateway
-    $gateway = MessagingFactory::create();
+    $gateway = \EduCRM\Services\MessagingFactory::create();
 
     // Process queue
     $result = $gateway->processQueue(50);

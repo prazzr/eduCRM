@@ -14,9 +14,9 @@ if (!isset($entityType) || !isset($entityId)) {
     return;
 }
 
-require_once __DIR__ . '/../../includes/services/DocumentService.php';
+require_once __DIR__ . '/../../app/services/DocumentService.php';
 
-$documentService = new DocumentService($pdo);
+$documentService = new \EduCRM\Services\DocumentService($pdo);
 $entityDocuments = $documentService->getEntityDocuments($entityType, $entityId);
 $categories = $documentService->getCategories();
 ?>

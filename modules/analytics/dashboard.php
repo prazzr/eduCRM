@@ -1,10 +1,10 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/AnalyticsService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
-$analytics = new AnalyticsService($pdo);
+$analytics = new \EduCRM\Services\AnalyticsService($pdo);
 
 // Get date range from query params
 $startDate = $_GET['start_date'] ?? date('Y-m-01'); // First day of month
@@ -20,11 +20,10 @@ $goalProgress = $analytics->getGoalProgress();
 $trendData = $analytics->getTrendData('inquiries', 30);
 
 $pageDetails = ['title' => 'Analytics Dashboard'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
-<!-- Include Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Chart.js loaded via header.php -->
 
 <div class="mb-6">
     <div class="flex justify-between items-center">
@@ -249,35 +248,35 @@ require_once '../../includes/header.php';
         type: 'bar',
         data: {
             labels: <?php echo json_encode(array_column($conversionFunnel['stages'], 'name')); ?>,
-                datasets: [{
-                    label: 'Count',
-                    data: <?php echo json_encode(array_column($conversionFunnel['stages'], 'count')); ?>,
-                    backgroundColor: [
+            datasets: [{
+                label: 'Count',
+                data: <?php echo json_encode(array_column($conversionFunnel['stages'], 'count')); ?>,
+                backgroundColor: [
                     'rgba(59, 130, 246, 0.8)',
                     'rgba(16, 185, 129, 0.8)',
                     'rgba(245, 158, 11, 0.8)',
                     'rgba(239, 68, 68, 0.8)'
                 ],
-                    borderColor: [
+                borderColor: [
                     'rgb(59, 130, 246)',
                     'rgb(16, 185, 129)',
                     'rgb(245, 158, 11)',
                     'rgb(239, 68, 68)'
                 ],
-                    borderWidth: 2
-        }]
-    },
-    options: {
-        responsive: true,
-            maintainAspectRatio: false,
-                plugins: {
-            legend: { display: false }
+                borderWidth: 2
+            }]
         },
-        scales: {
-            y: { beginAtZero: true }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
         }
-    }
-});
+    });
 
     // Revenue Trend Chart
     const revenueTrendCtx = document.getElementById('revenueTrendChart').getContext('2d');
@@ -322,4 +321,4 @@ require_once '../../includes/header.php';
     }, 30000);
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

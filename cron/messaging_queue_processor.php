@@ -5,8 +5,7 @@
  * Run via cron every 1-5 minutes
  */
 
-require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/../includes/services/MessagingFactory.php';
+require_once __DIR__ . '/../app/bootstrap.php';
 
 // Prevent direct browser access
 if (php_sapi_name() !== 'cli' && !isset($_GET['manual_run'])) {
@@ -14,7 +13,7 @@ if (php_sapi_name() !== 'cli' && !isset($_GET['manual_run'])) {
 }
 
 try {
-    MessagingFactory::init($pdo);
+    \EduCRM\Services\MessagingFactory::init($pdo);
 
     echo "[" . date('Y-m-d H:i:s') . "] Starting message queue processor...\n";
 
@@ -35,7 +34,7 @@ try {
         try {
             echo "Processing gateway: {$gatewayConfig['name']} ({$gatewayConfig['provider']})...\n";
 
-            $gateway = MessagingFactory::create($gatewayConfig['id']);
+            $gateway = \EduCRM\Services\MessagingFactory::create($gatewayConfig['id']);
 
             // Process batch of messages
             $batchSize = 50; // Process 50 messages per gateway per run
@@ -60,7 +59,7 @@ try {
     $today = date('Y-m-d');
 
     if ($lastReset !== $today) {
-        MessagingFactory::resetDailyCounters();
+        \EduCRM\Services\MessagingFactory::resetDailyCounters();
 
         $stmt = $pdo->prepare("
             INSERT INTO system_settings (setting_key, setting_value, setting_type) 

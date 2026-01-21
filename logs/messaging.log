@@ -1,0 +1,22 @@
+﻿[2026-01-04 10:30:45] [INFO] [Gateway: Twilio SMS (#1)] SMS sent successfully | Context: {"recipient":"+9779812345678","message_id":"SM123abc456def"}
+[2026-01-04 10:30:44] [DEBUG] [Gateway: Twilio SMS (#1)] Twilio API request | Context: {"url":"https://api.twilio.com/2010-04-01/Accounts/AC.../Messages.json","from":"+14155551234","to":"+9779812345678"}
+[2026-01-04 10:30:43] [INFO] [Gateway: Twilio SMS (#1)] Sending SMS via Twilio | Context: {"recipient":"9812345678"}
+[2026-01-04 10:28:15] [ERROR] [Gateway: WhatsApp Business (#2)] Meta Cloud API failed | Context: {"recipient":"+9779876543210","http_code":401,"error":"Invalid access token"}
+[2026-01-04 10:28:14] [DEBUG] [Gateway: WhatsApp Business (#2)] Meta Cloud API request | Context: {"url":"https://graph.facebook.com/v18.0/123456789/messages","to":"+9779876543210"}
+[2026-01-04 10:28:13] [INFO] [Gateway: WhatsApp Business (#2)] Sending WhatsApp message | Context: {"recipient":"9876543210","provider":"whatsapp_business"}
+[2026-01-04 10:25:00] [INFO] [Gateway: Viber Bot (#3)] Viber message sent successfully | Context: {"recipient":"user123","message_token":"5577006791947779410"}
+[2026-01-04 10:24:59] [DEBUG] [Gateway: Viber Bot (#3)] Viber API request | Context: {"receiver":"user123","bot_name":"eduCRM Bot"}
+[2026-01-04 10:22:30] [WARNING] [Gateway: SMPP (#4)] SMPP throttling detected | Context: {"status_code":"0x00000058","message":"Throttling error - too many requests"}
+[2026-01-04 10:20:00] [INFO] [Gateway: Gammu (#5)] Gammu SMS sent successfully | Context: {"recipient":"+9779801234567","message_id":"gammu_678abc"}
+[2026-01-04 10:19:59] [DEBUG] [Gateway: Gammu (#5)] Gammu command | Context: {"cmd":"gammu -c /tmp/gammu_xxx.conf sendsms TEXT '+9779801234567' -text 'Hello'"}
+[2026-01-04 10:15:00] [INFO] [Gateway: Twilio SMS (#1)] Testing Twilio connection
+[2026-01-04 10:15:01] [INFO] [Gateway: Twilio SMS (#1)] Twilio connection test passed | Context: {"http_code":200}
+[2026-01-04 10:10:00] [DEBUG] [Gateway: Unknown (#0)] Formatted phone number | Context: {"original":"9812345678","formatted":"+9779812345678","country_code":"+977"}
+[2026-01-19 12:34:15] [INFO] [Gateway: ntfy Test New (#9)] Sending ntfy notification | Context: {"recipient":"test","topic":"educrm-test"}
+[2026-01-19 12:34:15] [DEBUG] [Gateway: ntfy Test New (#9)] [HTTP] HTTP POST request | Context: {"url":"http://localhost:8090/educrm-test","has_body":true,"has_auth":false}
+[2026-01-19 12:34:18] [DEBUG] [Gateway: ntfy Test New (#9)] [HTTP] HTTP response received | Context: {"http_code":0,"has_error":true,"response_size":0}
+[2026-01-19 12:34:18] [ERROR] [Gateway: ntfy Test New (#9)] ntfy cURL error | Context: {"error":"Failed to connect to localhost port 8090: Connection refused"}
+[2026-01-19 12:38:09] [INFO] [Gateway: ntfy Local (#8)] Sending ntfy notification | Context: {"recipient":"test_cli","topic":"educrm-test_cli"}
+[2026-01-19 12:38:09] [DEBUG] [Gateway: ntfy Local (#8)] [HTTP] HTTP POST request | Context: {"url":"http://localhost:8090/educrm-test_cli","has_body":true,"has_auth":false}
+[2026-01-19 12:38:11] [DEBUG] [Gateway: ntfy Local (#8)] [HTTP] HTTP response received | Context: {"http_code":0,"has_error":true,"response_size":0}
+[2026-01-19 12:38:11] [ERROR] [Gateway: ntfy Local (#8)] ntfy cURL error | Context: {"error":"Failed to connect to localhost port 8090: Connection refused"}

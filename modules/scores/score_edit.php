@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 if (hasRole('student')) {
@@ -31,20 +31,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $pdo->prepare("UPDATE test_scores SET student_id = ?, test_type = ?, overall_score = ?, listening = ?, reading = ?, writing = ?, speaking = ? WHERE id = ?");
     $stmt->execute([$student_id, $type, $overall, $l, $r, $w, $s, $id]);
-    $message = "Score updated!";
-
-    // Refresh
-    $score['student_id'] = $student_id;
-    $score['test_type'] = $type;
-    $score['overall_score'] = $overall;
-    $score['listening'] = $l;
-    $score['reading'] = $r;
-    $score['writing'] = $w;
-    $score['speaking'] = $s;
+    redirectWithAlert("score_edit.php?id=$id", "Score updated successfully!", "success");
 }
 
 $pageDetails = ['title' => 'Edit Test Score'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 600px; margin: 0 auto;">
@@ -106,4 +97,4 @@ require_once '../../includes/header.php';
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

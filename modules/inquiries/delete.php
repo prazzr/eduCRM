@@ -1,13 +1,31 @@
 <?php
-require_once '../../config.php';
+/**
+ * Inquiry Delete
+ * Handles inquiry deletion with proper authorization and logging
+ */
+require_once '../../app/bootstrap.php';
 requireLogin();
+requireAdminCounselorOrBranchManager();
 
-requireAdminOrCounselor();
+// Validate ID parameter
+$id = requireIdParam();
 
-$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-if (!$id)
-    die("Invalid ID");
+// Delete inquiry using transaction for data integrity
+try {
+    $pdo->beginTransaction();
 
-$pdo->prepare("DELETE FROM inquiries WHERE id = ?")->execute([$id]);
-header("Location: list.php?msg=deleted");
-exit;
+    // Log the deletion before removing
+    logAction('inquiry_delete', "Deleted inquiry ID: {$id}");
+
+    // Delete the inquiry
+    $stmt = $pdo->prepare("DELETE FROM inquiries WHERE id = ?");
+    $stmt->execute([$id]);
+
+    $pdo->commit();
+    redirectWithAlert("list.php", "Inquiry deleted successfully!", "danger");
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    die("Error: Cannot delete inquiry. It may be linked to other records.");
+}

@@ -1,27 +1,49 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/LeadScoringService.php';
+/**
+ * Inquiry List
+ * Displays all inquiries with lead scoring and priority filtering
+ */
+require_once '../../app/bootstrap.php';
+
 requireLogin();
 
-requireAdminOrCounselor();
+// Admin, Counselor, or Branch Manager access only
+requireAdminCounselorOrBranchManager();
 
-$leadScoringService = new LeadScoringService($pdo);
+
+$branchService = new \EduCRM\Services\BranchService($pdo);
+$branchFilter = $branchService->getBranchFilter($_SESSION['user_id'], 'i');
+
+$leadScoringService = new \EduCRM\Services\LeadScoringService($pdo);
 
 // Get filter parameter
 $priorityFilter = $_GET['priority'] ?? null;
 $statusFilter = $_GET['status'] ?? null;
 
-// Build query with filters
-$sql = "SELECT i.*, u.name as counselor_name FROM inquiries i LEFT JOIN users u ON i.assigned_to = u.id WHERE 1=1";
+// Build query with filters - Using FK columns with JOINs
+$sql = "SELECT i.*, 
+        u.name as counselor_name,
+        c.name as country_name,
+        el.name as education_level_name,
+        ist.name as status_name,
+        pl.name as priority_name,
+        pl.color_code as priority_color
+        FROM inquiries i 
+        LEFT JOIN users u ON i.assigned_to = u.id 
+        LEFT JOIN countries c ON i.country_id = c.id
+        LEFT JOIN education_levels el ON i.education_level_id = el.id
+        LEFT JOIN inquiry_statuses ist ON i.status_id = ist.id
+        LEFT JOIN priority_levels pl ON i.priority_id = pl.id
+        WHERE 1=1 $branchFilter";
 $params = [];
 
 if ($priorityFilter) {
-    $sql .= " AND i.priority = ?";
+    $sql .= " AND pl.name = ?";
     $params[] = $priorityFilter;
 }
 
 if ($statusFilter) {
-    $sql .= " AND i.status = ?";
+    $sql .= " AND ist.name = ?";
     $params[] = $statusFilter;
 }
 
@@ -46,197 +68,418 @@ $counselorsStmt = $pdo->query("
 $counselors = $counselorsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $pageDetails = ['title' => 'Inquiry List'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
-<div class="mb-6 flex justify-between items-center">
-    <h1 class="text-2xl font-bold text-slate-800">Inquiries</h1>
-    <a href="add.php" class="btn">+ Add New Inquiry</a>
+<div class="page-header">
+    <h1 class="page-title">Inquiries</h1>
+    <a href="add.php" class="btn btn-primary">
+        <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Add New Inquiry
+    </a>
+</div>
+
+<!-- Quick Search with Alpine.js -->
+<div class="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-sm mb-4">
+    <div x-data='searchFilter({
+        data: <?php echo json_encode(array_map(function ($i) {
+            return [
+                'id' => $i['id'],
+                'name' => $i['name'],
+                'email' => $i['email'],
+                'phone' => $i['phone'] ?? '',
+                'priority' => $i['priority_name'] ?? $i['priority'] ?? 'cold',
+                'status' => $i['status_name'] ?? $i['status'] ?? 'new'
+            ];
+        }, $inquiries)); ?>,
+        searchFields: ["name", "email", "phone", "priority", "status"],
+        minLength: 2,
+        maxResults: 8
+    })' class="relative">
+        <div class="flex items-center gap-3">
+            <span class="text-slate-400">🔍</span>
+            <input type="text" x-model="query" @input="search()" @focus="if(query.length >= 2) showResults = true"
+                @keydown="handleKeydown($event)" @keydown.escape="showResults = false"
+                class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder="Quick search by name, email, or phone..." autocomplete="off">
+
+            <span x-show="loading" class="spinner text-slate-400"></span>
+        </div>
+
+        <!-- Search Results Dropdown -->
+        <div x-show="showResults && results.length > 0" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 transform -translate-y-2"
+            x-transition:enter-end="opacity-100 transform translate-y-0"
+            x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0" @click.outside="showResults = false"
+            class="search-results-container absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-80 overflow-y-auto z-50">
+
+            <template x-for="(item, index) in results" :key="item.id">
+                <a :href="'edit.php?id=' + item.id" :data-index="index" @mouseenter="setSelectedIndex(index)"
+                    class="flex items-center gap-3 px-4 py-3 border-b border-slate-100 transition-colors"
+                    :class="{ 'bg-primary-50 border-l-4 border-l-teal-600': isSelected(index), 'hover:bg-slate-50': !isSelected(index) }">
+                    <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                        x-text="item.name.charAt(0).toUpperCase()"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium text-slate-800" x-text="item.name"></div>
+                        <div class="text-xs text-slate-500 truncate">
+                            <span x-text="item.email"></span> • <span x-text="item.phone || 'No phone'"></span>
+                        </div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-xs font-bold" :class="{
+                              'bg-red-100 text-red-700': item.priority === 'hot',
+                              'bg-orange-100 text-orange-700': item.priority === 'warm',
+                              'bg-blue-100 text-blue-700': item.priority === 'cold'
+                          }">
+                        <span x-text="item.priority === 'hot' ? '🔥' : (item.priority === 'warm' ? '☀️' : '❄️')"></span>
+                        <span x-text="item.priority.toUpperCase()"></span>
+                    </span>
+                </a>
+            </template>
+
+            <div x-show="results.length === 0 && query.length >= 2 && !loading"
+                class="px-4 py-3 text-center text-slate-500 text-sm">
+                No inquiries found
+            </div>
+        </div>
+    </div>
 </div>
 
 <?php renderFlashMessage(); ?>
 
-<!-- Phase 1: Priority Filter Chips -->
-<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6">
-    <div class="flex items-center gap-3 flex-wrap">
-        <span class="text-sm font-medium text-slate-600">Filter by Priority:</span>
-        <a href="list.php"
-            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors <?php echo !$priorityFilter ? 'bg-slate-200 text-slate-800' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'; ?>">
-            All (<?php echo array_sum($priorityStats); ?>)
-        </a>
-        <a href="?priority=hot"
-            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors <?php echo $priorityFilter === 'hot' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-red-50 text-red-600 hover:bg-red-100'; ?>">
-            🔥 Hot (<?php echo $priorityStats['hot']; ?>)
-        </a>
-        <a href="?priority=warm"
-            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors <?php echo $priorityFilter === 'warm' ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'; ?>">
-            ☀️ Warm (<?php echo $priorityStats['warm']; ?>)
-        </a>
-        <a href="?priority=cold"
-            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors <?php echo $priorityFilter === 'cold' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'; ?>">
-            ❄️ Cold (<?php echo $priorityStats['cold']; ?>)
-        </a>
-
-        <span class="text-slate-300 mx-2">|</span>
-
-        <select name="status"
-            onchange="window.location.href='?status=' + this.value + (<?php echo $priorityFilter ? "'&priority=<?php echo $priorityFilter; ?>'" : "''"; ?>)"
-            class="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
-            <option value="">All Statuses</option>
-            <option value="new" <?php echo $statusFilter === 'new' ? 'selected' : ''; ?>>New</option>
-            <option value="contacted" <?php echo $statusFilter === 'contacted' ? 'selected' : ''; ?>>Contacted</option>
-            <option value="converted" <?php echo $statusFilter === 'converted' ? 'selected' : ''; ?>>Converted</option>
-            <option value="closed" <?php echo $statusFilter === 'closed' ? 'selected' : ''; ?>>Closed</option>
-        </select>
-    </div>
-</div>
-
-<!-- Phase 2C: Bulk Action Toolbar -->
-<div id="bulkToolbar" class="hidden bg-primary-50 border border-primary-200 p-4 rounded-xl mb-6">
-    <div class="flex items-center justify-between flex-wrap gap-3">
+<!-- Priority Filter Bar - Single Row -->
+<div class="bg-white px-5 py-4 rounded-xl border border-slate-200 shadow-sm mb-6">
+    <div class="flex items-center justify-between gap-6">
+        <!-- Priority Pills -->
         <div class="flex items-center gap-3">
-            <span class="text-primary-700 font-medium">
-                <span id="selectedCount">0</span> inquiry(ies) selected
-            </span>
+            <span class="text-sm font-medium text-slate-500">Priority:</span>
 
-            <select id="bulkAction" class="px-3 py-2 border border-primary-300 rounded-lg text-sm bg-white">
-                <option value="">Choose Action...</option>
-                <option value="assign">Assign Counselor...</option>
-                <option value="priority">Change Priority...</option>
-                <option value="status">Change Status...</option>
-                <option value="email">Send Email...</option>
-                <?php if (hasRole('admin')): ?>
-                    <option value="delete">Delete Selected</option>
-                <?php endif; ?>
-            </select>
+            <a href="list.php" class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all
+                       <?php echo !$priorityFilter
+                           ? 'bg-slate-700 text-white shadow-sm'
+                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'; ?>">
+                <span>📋</span>
+                <span>All</span>
+                <span
+                    class="<?php echo !$priorityFilter ? 'bg-slate-600 text-slate-200' : 'bg-slate-200 text-slate-600'; ?> px-1.5 py-0.5 rounded-full text-xs font-bold"><?php echo array_sum($priorityStats); ?></span>
+            </a>
 
-            <select id="assignSelect" class="hidden px-3 py-2 border border-primary-300 rounded-lg text-sm bg-white">
-                <option value="">Select Counselor...</option>
-                <?php foreach ($counselors as $counselor): ?>
-                    <option value="<?php echo $counselor['id']; ?>"><?php echo htmlspecialchars($counselor['name']); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <a href="?priority=hot<?php echo $statusFilter ? "&status=$statusFilter" : ''; ?>" class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all
+                       <?php echo $priorityFilter === 'hot'
+                           ? 'bg-red-500 text-white shadow-sm'
+                           : 'bg-red-50 text-red-600 hover:bg-red-100'; ?>">
+                <span>🔥</span>
+                <span>Hot</span>
+                <span
+                    class="<?php echo $priorityFilter === 'hot' ? 'bg-red-400 text-white' : 'bg-red-100 text-red-600'; ?> px-1.5 py-0.5 rounded-full text-xs font-bold"><?php echo $priorityStats['hot']; ?></span>
+            </a>
 
-            <select id="prioritySelect" class="hidden px-3 py-2 border border-primary-300 rounded-lg text-sm bg-white">
-                <option value="">Select Priority...</option>
-                <option value="hot">🔥 Hot</option>
-                <option value="warm">☀️ Warm</option>
-                <option value="cold">❄️ Cold</option>
-            </select>
+            <a href="?priority=warm<?php echo $statusFilter ? "&status=$statusFilter" : ''; ?>" class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all
+                       <?php echo $priorityFilter === 'warm'
+                           ? 'bg-orange-500 text-white shadow-sm'
+                           : 'bg-orange-50 text-orange-600 hover:bg-orange-100'; ?>">
+                <span>☀️</span>
+                <span>Warm</span>
+                <span
+                    class="<?php echo $priorityFilter === 'warm' ? 'bg-orange-400 text-white' : 'bg-orange-100 text-orange-600'; ?> px-1.5 py-0.5 rounded-full text-xs font-bold"><?php echo $priorityStats['warm']; ?></span>
+            </a>
 
-            <select id="statusSelect" class="hidden px-3 py-2 border border-primary-300 rounded-lg text-sm bg-white">
-                <option value="">Select Status...</option>
-                <option value="new">New</option>
-                <option value="contacted">Contacted</option>
-                <option value="converted">Converted</option>
-                <option value="closed">Closed</option>
-            </select>
-
-            <button id="applyBulkAction" class="btn px-4 py-2 text-sm">Apply</button>
+            <a href="?priority=cold<?php echo $statusFilter ? "&status=$statusFilter" : ''; ?>" class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all
+                       <?php echo $priorityFilter === 'cold'
+                           ? 'bg-blue-500 text-white shadow-sm'
+                           : 'bg-blue-50 text-blue-600 hover:bg-blue-100'; ?>">
+                <span>❄️</span>
+                <span>Cold</span>
+                <span
+                    class="<?php echo $priorityFilter === 'cold' ? 'bg-blue-400 text-white' : 'bg-blue-100 text-blue-600'; ?> px-1.5 py-0.5 rounded-full text-xs font-bold"><?php echo $priorityStats['cold']; ?></span>
+            </a>
         </div>
 
-        <button id="clearSelection" class="text-sm text-primary-600 hover:text-primary-800">Clear Selection</button>
+        <!-- Status Filter Pills -->
+        <div class="hidden md:flex items-center gap-2 pl-6 border-l border-slate-200">
+            <span class="text-sm font-medium text-slate-500">Status:</span>
+            <?php
+            $statuses = [
+                'new' => ['label' => 'New', 'color' => 'bg-blue-100 text-blue-700 hover:bg-blue-200'],
+                'contacted' => ['label' => 'Contacted', 'color' => 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'],
+                'converted' => ['label' => 'Converted', 'color' => 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'],
+                'closed' => ['label' => 'Closed', 'color' => 'bg-slate-100 text-slate-700 hover:bg-slate-200']
+            ];
+
+            foreach ($statuses as $k => $s):
+                $isActive = $statusFilter === $k;
+                $activeClass = match ($k) {
+                    'new' => 'bg-blue-600 text-white shadow-sm',
+                    'contacted' => 'bg-yellow-500 text-white shadow-sm',
+                    'converted' => 'bg-emerald-600 text-white shadow-sm',
+                    'closed' => 'bg-slate-600 text-white shadow-sm',
+                };
+                ?>
+                <a href="?status=<?php echo $k; ?><?php echo $priorityFilter ? "&priority=$priorityFilter" : ''; ?>"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all <?php echo $isActive ? $activeClass : $s['color']; ?>">
+                    <?php echo $s['label']; ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Right Side: Clear only -->
+        <?php if ($priorityFilter || $statusFilter): ?>
+            <a href="list.php" class="text-sm text-slate-400 hover:text-red-500 transition-colors" title="Clear filters">
+                ✕ Clear filters
+            </a>
+        <?php endif; ?>
     </div>
 </div>
 
-<!-- Inquiries Table -->
-<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-            <thead>
-                <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
-                    <th class="p-3 w-12">
-                        <input type="checkbox" id="selectAll"
-                            class="rounded border-slate-300 text-primary-600 focus:ring-primary-500">
-                    </th>
-                    <th class="p-3 font-semibold">Name</th>
-                    <th class="p-3 font-semibold">Contact</th>
-                    <th class="p-3 font-semibold">Interest</th>
-                    <th class="p-3 font-semibold">Priority</th>
-                    <th class="p-3 font-semibold">Score</th>
-                    <th class="p-3 font-semibold">Assigned To</th>
-                    <th class="p-3 font-semibold">Status</th>
-                    <th class="p-3 font-semibold text-right">Action</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                <?php if (count($inquiries) > 0):
-                    foreach ($inquiries as $inq): ?>
-                        <?php
-                        $priorityColors = [
-                            'hot' => 'bg-red-100 text-red-700 border-red-200',
-                            'warm' => 'bg-orange-100 text-orange-700 border-orange-200',
-                            'cold' => 'bg-blue-100 text-blue-700 border-blue-200'
-                        ];
-                        $priorityIcons = ['hot' => '🔥', 'warm' => '☀️', 'cold' => '❄️'];
+<!-- Bulk Action Toolbar with Alpine.js -->
+<script>
+    function inquiryBulkActions() {
+        return {
+            selected: [],
+            action: '',
+            assignTo: '',
+            priority: '',
+            status: '',
+            loading: false,
+            allIds: <?php echo json_encode(array_column($inquiries, 'id')); ?>,
 
-                        $statusColors = [
-                            'new' => 'bg-blue-100 text-blue-700',
-                            'contacted' => 'bg-yellow-100 text-yellow-700',
-                            'converted' => 'bg-emerald-100 text-emerald-700',
-                            'closed' => 'bg-slate-100 text-slate-700'
-                        ];
-                        ?>
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="p-3">
-                                <input type="checkbox"
-                                    class="inquiry-checkbox rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                                    value="<?php echo $inq['id']; ?>">
-                            </td>
-                            <td class="p-3">
-                                <strong class="text-slate-800"><?php echo htmlspecialchars($inq['name']); ?></strong>
-                            </td>
-                            <td class="p-3 text-sm text-slate-600">
-                                <div><?php echo htmlspecialchars($inq['email']); ?></div>
-                                <div class="text-xs text-slate-500"><?php echo htmlspecialchars($inq['phone']); ?></div>
-                            </td>
-                            <td class="p-3 text-sm text-slate-600">
-                                <div><?php echo htmlspecialchars($inq['intended_country']); ?></div>
-                                <div class="text-xs text-slate-500"><?php echo htmlspecialchars($inq['intended_course']); ?>
-                                </div>
-                            </td>
-                            <td class="p-3">
-                                <span
-                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-bold uppercase <?php echo $priorityColors[$inq['priority']]; ?>">
-                                    <?php echo $priorityIcons[$inq['priority']]; ?>
-                                    <?php echo $inq['priority']; ?>
-                                </span>
-                            </td>
-                            <td class="p-3">
-                                <span class="text-lg font-bold text-slate-800"><?php echo $inq['score']; ?></span>
-                                <span class="text-xs text-slate-500">/100</span>
-                            </td>
-                            <td class="p-3 text-sm text-slate-600">
-                                <?php echo htmlspecialchars($inq['counselor_name'] ?? 'Unassigned'); ?>
-                            </td>
-                            <td class="p-3">
-                                <span
-                                    class="inline-block px-2 py-0.5 rounded text-xs font-bold uppercase <?php echo $statusColors[$inq['status']]; ?>">
-                                    <?php echo $inq['status']; ?>
-                                </span>
-                            </td>
-                            <td class="p-3 text-right">
-                                <div class="flex gap-2 justify-end">
-                                    <a href="edit.php?id=<?php echo $inq['id']; ?>"
-                                        class="btn-secondary px-3 py-1.5 text-xs rounded">Edit</a>
-                                    <a href="convert.php?id=<?php echo $inq['id']; ?>"
-                                        class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs rounded font-medium">Convert</a>
-                                </div>
+            get count() { return this.selected.length; },
+            get hasSelection() { return this.selected.length > 0; },
+            get allSelected() { return this.selected.length === this.allIds.length && this.allIds.length > 0; },
+
+            toggleAll() {
+                this.selected = this.allSelected ? [] : [...this.allIds];
+            },
+            toggle(id) {
+                const idx = this.selected.indexOf(id);
+                if (idx === -1) this.selected.push(id);
+                else this.selected.splice(idx, 1);
+            },
+            isSelected(id) { return this.selected.includes(id); },
+            clear() { this.selected = []; this.action = ''; },
+
+            async apply() {
+                if (!this.action) { Modal.show({ type: 'warning', title: 'Select Action', message: 'Please select an action' }); return; }
+                if (this.selected.length === 0) { Modal.show({ type: 'warning', title: 'No Selection', message: 'Please select at least one inquiry' }); return; }
+
+                if (this.action === 'assign' && !this.assignTo) { Modal.show({ type: 'warning', title: 'Select Counselor', message: 'Please select a counselor' }); return; }
+                if (this.action === 'priority' && !this.priority) { Modal.show({ type: 'warning', title: 'Select Priority', message: 'Please select a priority' }); return; }
+                if (this.action === 'status' && !this.status) { Modal.show({ type: 'warning', title: 'Select Status', message: 'Please select a status' }); return; }
+
+                if (this.action === 'email') {
+                    document.getElementById('recipientCount').textContent = this.selected.length;
+                    document.getElementById('emailModal').classList.remove('hidden');
+                    return;
+                }
+
+                const actionNames = { assign: 'assign', priority: 'update priority for', status: 'update status for', delete: 'delete' };
+                const self = this;
+
+                Modal.show({
+                    type: this.action === 'delete' ? 'error' : 'warning',
+                    title: 'Confirm Bulk Action',
+                    message: `Are you sure you want to ${actionNames[this.action] || this.action} ${this.selected.length} inquiry(ies)?`,
+                    confirmText: 'Yes, Proceed',
+                    onConfirm: async function () {
+                        self.loading = true;
+                        const formData = new FormData();
+                        formData.append('action', self.action);
+                        self.selected.forEach(id => formData.append('inquiry_ids[]', id));
+                        if (self.action === 'assign') formData.append('assign_to', self.assignTo);
+                        if (self.action === 'priority') formData.append('priority', self.priority);
+                        if (self.action === 'status') formData.append('status', self.status);
+
+                        try {
+                            const response = await fetch('bulk_action.php', { method: 'POST', body: formData });
+                            const data = await response.json();
+                            if (data.success) {
+                                Modal.show({ type: 'success', title: 'Success', message: data.message });
+                                setTimeout(() => window.location.reload(), 1500);
+                            } else {
+                                Modal.show({ type: 'error', title: 'Error', message: data.message });
+                            }
+                        } catch (e) {
+                            Modal.show({ type: 'error', title: 'Error', message: 'An error occurred: ' + e });
+                        }
+                        self.loading = false;
+                    }
+                });
+            }
+        };
+    }
+</script>
+<div x-data="inquiryBulkActions()" x-ref="bulkContainer">
+
+    <!-- Toolbar (shows when items selected) -->
+    <div x-show="hasSelection" x-cloak x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 transform -translate-y-2"
+        x-transition:enter-end="opacity-100 transform translate-y-0"
+        class="bg-primary-50 border border-primary-200 p-4 rounded-xl mb-6">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-3">
+                <span class="text-primary-700 font-medium">
+                    <span x-text="count"></span> inquiry(ies) selected
+                </span>
+
+                <select x-model="action" class="px-3 py-2 border border-primary-300 rounded-lg text-sm bg-white">
+                    <option value="">Choose Action...</option>
+                    <option value="assign">Assign Counselor...</option>
+                    <option value="priority">Change Priority...</option>
+                    <option value="status">Change Status...</option>
+                    <option value="email">Send Email...</option>
+                    <?php if (hasRole('admin')): ?>
+                        <option value="delete">Delete Selected</option>
+                    <?php endif; ?>
+                </select>
+
+                <select x-show="action === 'assign'" x-model="assignTo" x-transition
+                    class="px-3 py-2 border border-primary-300 rounded-lg text-sm bg-white">
+                    <option value="">Select Counselor...</option>
+                    <?php foreach ($counselors as $counselor): ?>
+                        <option value="<?php echo $counselor['id']; ?>"><?php echo htmlspecialchars($counselor['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <select x-show="action === 'priority'" x-model="priority" x-transition
+                    class="px-3 py-2 border border-primary-300 rounded-lg text-sm bg-white">
+                    <option value="">Select Priority...</option>
+                    <option value="hot">🔥 Hot</option>
+                    <option value="warm">☀️ Warm</option>
+                    <option value="cold">❄️ Cold</option>
+                </select>
+
+                <select x-show="action === 'status'" x-model="status" x-transition
+                    class="px-3 py-2 border border-primary-300 rounded-lg text-sm bg-white">
+                    <option value="">Select Status...</option>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="converted">Converted</option>
+                    <option value="closed">Closed</option>
+                </select>
+
+                <button @click="apply()" :disabled="loading" class="btn px-4 py-2 text-sm">
+                    <span x-show="!loading">Apply</span>
+                    <span x-show="loading">Processing...</span>
+                </button>
+            </div>
+
+            <button @click="clear()" class="text-sm text-primary-600 hover:text-primary-800">Clear Selection</button>
+        </div>
+    </div>
+
+    <!-- Inquiries Table -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
+                        <th class="p-3 w-12">
+                            <input type="checkbox" @click="toggleAll()" :checked="allSelected"
+                                class="rounded border-slate-300 text-primary-600 focus:ring-primary-500">
+                        </th>
+                        <th class="p-3 font-semibold">Name</th>
+                        <th class="p-3 font-semibold">Contact</th>
+                        <th class="p-3 font-semibold">Interest</th>
+                        <th class="p-3 font-semibold">Priority</th>
+                        <th class="p-3 font-semibold">Score</th>
+                        <th class="p-3 font-semibold">Assigned To</th>
+                        <th class="p-3 font-semibold">Status</th>
+                        <th class="p-3 font-semibold text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    <?php if (count($inquiries) > 0):
+                        foreach ($inquiries as $inq): ?>
+                            <?php
+                            $priorityColors = [
+                                'hot' => 'bg-red-100 text-red-700 border-red-200',
+                                'warm' => 'bg-orange-100 text-orange-700 border-orange-200',
+                                'cold' => 'bg-blue-100 text-blue-700 border-blue-200'
+                            ];
+                            $priorityIcons = ['hot' => '🔥', 'warm' => '☀️', 'cold' => '❄️'];
+
+                            $statusColors = [
+                                'new' => 'bg-blue-100 text-blue-700',
+                                'contacted' => 'bg-yellow-100 text-yellow-700',
+                                'converted' => 'bg-emerald-100 text-emerald-700',
+                                'closed' => 'bg-slate-100 text-slate-700'
+                            ];
+                            ?>
+                            <tr class="hover:bg-slate-50 transition-colors"
+                                :class="{ 'bg-primary-50': isSelected(<?php echo $inq['id']; ?>) }">
+                                <td class="p-3">
+                                    <input type="checkbox" @click="toggle(<?php echo $inq['id']; ?>)"
+                                        :checked="isSelected(<?php echo $inq['id']; ?>)"
+                                        class="rounded border-slate-300 text-primary-600 focus:ring-primary-500">
+                                </td>
+                                <td class="p-3">
+                                    <strong class="text-slate-800"><?php echo htmlspecialchars($inq['name']); ?></strong>
+                                </td>
+                                <td class="p-3 text-sm text-slate-600">
+                                    <div><?php echo htmlspecialchars($inq['email']); ?></div>
+                                    <div class="text-xs text-slate-500"><?php echo htmlspecialchars($inq['phone']); ?></div>
+                                </td>
+                                <td class="p-3 text-sm text-slate-600">
+                                    <div><?php echo htmlspecialchars($inq['country_name'] ?? $inq['intended_country'] ?? ''); ?>
+                                    </div>
+                                    <div class="text-xs text-slate-500"><?php echo htmlspecialchars($inq['intended_course']); ?>
+                                    </div>
+                                </td>
+                                <td class="p-3">
+                                    <?php $displayPriority = $inq['priority_name'] ?? $inq['priority'] ?? 'cold'; ?>
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-bold uppercase <?php echo $priorityColors[$displayPriority] ?? $priorityColors['cold']; ?>">
+                                        <?php echo $priorityIcons[$displayPriority] ?? '❄️'; ?>
+                                        <?php echo $displayPriority; ?>
+                                    </span>
+                                </td>
+                                <td class="p-3">
+                                    <span class="text-lg font-bold text-slate-800"><?php echo $inq['score']; ?></span>
+                                    <span class="text-xs text-slate-500">/100</span>
+                                </td>
+                                <td class="p-3 text-sm text-slate-600">
+                                    <?php echo htmlspecialchars($inq['counselor_name'] ?? 'Unassigned'); ?>
+                                </td>
+                                <td class="p-3">
+                                    <?php $displayStatus = $inq['status_name'] ?? $inq['status'] ?? 'new'; ?>
+                                    <span
+                                        class="inline-block px-2 py-0.5 rounded text-xs font-bold uppercase <?php echo $statusColors[$displayStatus] ?? $statusColors['new']; ?>">
+                                        <?php echo $displayStatus; ?>
+                                    </span>
+                                </td>
+                                <td class="p-3 text-right">
+                                    <div class="flex gap-2 justify-end">
+                                        <a href="edit.php?id=<?php echo $inq['id']; ?>" class="action-btn default" title="Edit">
+                                            <?php echo \EduCRM\Services\NavigationService::getIcon('edit', 16); ?>
+                                        </a>
+                                        <a href="convert.php?id=<?php echo $inq['id']; ?>" class="action-btn green"
+                                            title="Convert to Student">
+                                            <?php echo \EduCRM\Services\NavigationService::getIcon('check-square', 16); ?>
+                                        </a>
+                                        <?php if (hasRole('admin') || hasRole('branch_manager')): ?>
+                                            <a href="#" onclick="confirmDelete(<?php echo $inq['id']; ?>)" class="action-btn red"
+                                                title="Delete">
+                                                <?php echo \EduCRM\Services\NavigationService::getIcon('trash', 16); ?>
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; else: ?>
+                        <tr>
+                            <td colspan="9" class="p-6 text-center text-slate-500">
+                                No inquiries found. <a href="add.php" class="text-primary-600 hover:underline">Add your
+                                    first
+                                    inquiry</a>
                             </td>
                         </tr>
-                    <?php endforeach; else: ?>
-                    <tr>
-                        <td colspan="9" class="p-6 text-center text-slate-500">
-                            No inquiries found. <a href="add.php" class="text-primary-600 hover:underline">Add your first
-                                inquiry</a>
-                        </td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
-</div>
+
+</div><!-- End of Alpine.js bulk container -->
 
 <!-- Phase 2C: Bulk Email Composer Modal -->
 <div id="emailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -284,165 +527,78 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<!-- Phase 2C: Bulk Action JavaScript -->
+
+
+<!-- Standardized Delete Script -->
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const selectAll = document.getElementById('selectAll');
-        const inquiryCheckboxes = document.querySelectorAll('.inquiry-checkbox');
-        const bulkToolbar = document.getElementById('bulkToolbar');
-        const selectedCount = document.getElementById('selectedCount');
-        const bulkAction = document.getElementById('bulkAction');
-        const assignSelect = document.getElementById('assignSelect');
-        const prioritySelect = document.getElementById('prioritySelect');
-        const statusSelect = document.getElementById('statusSelect');
-        const applyBulkAction = document.getElementById('applyBulkAction');
-        const clearSelection = document.getElementById('clearSelection');
-        const emailModal = document.getElementById('emailModal');
-
-        function updateBulkToolbar() {
-            const checked = document.querySelectorAll('.inquiry-checkbox:checked');
-            selectedCount.textContent = checked.length;
-            bulkToolbar.classList.toggle('hidden', checked.length === 0);
-        }
-
-        selectAll.addEventListener('change', function () {
-            inquiryCheckboxes.forEach(cb => cb.checked = this.checked);
-            updateBulkToolbar();
-        });
-
-        inquiryCheckboxes.forEach(cb => {
-            cb.addEventListener('change', function () {
-                selectAll.checked = document.querySelectorAll('.inquiry-checkbox:checked').length === inquiryCheckboxes.length;
-                updateBulkToolbar();
-            });
-        });
-
-        bulkAction.addEventListener('change', function () {
-            assignSelect.classList.add('hidden');
-            prioritySelect.classList.add('hidden');
-            statusSelect.classList.add('hidden');
-
-            if (this.value === 'assign') assignSelect.classList.remove('hidden');
-            if (this.value === 'priority') prioritySelect.classList.remove('hidden');
-            if (this.value === 'status') statusSelect.classList.remove('hidden');
-        });
-
-        clearSelection.addEventListener('click', function () {
-            inquiryCheckboxes.forEach(cb => cb.checked = false);
-            selectAll.checked = false;
-            updateBulkToolbar();
-        });
-
-        applyBulkAction.addEventListener('click', function () {
-            const action = bulkAction.value;
-            if (!action) {
-                alert('Please select an action');
-                return;
+    function confirmDelete(id) {
+        Modal.show({
+            type: 'error',
+            title: 'Delete Inquiry?',
+            message: 'Are you sure you want to delete this inquiry? This action cannot be undone.',
+            confirmText: 'Yes, Delete It',
+            onConfirm: function () {
+                window.location.href = 'delete.php?id=' + id;
             }
-
-            const selectedIds = Array.from(document.querySelectorAll('.inquiry-checkbox:checked')).map(cb => cb.value);
-            if (selectedIds.length === 0) {
-                alert('Please select at least one inquiry');
-                return;
-            }
-
-            if (action === 'email') {
-                document.getElementById('recipientCount').textContent = selectedIds.length;
-                emailModal.classList.remove('hidden');
-                return;
-            }
-
-            let formData = new FormData();
-            formData.append('action', action);
-            selectedIds.forEach(id => formData.append('inquiry_ids[]', id));
-
-            if (action === 'assign') {
-                const assign = assignSelect.value;
-                if (!assign) {
-                    alert('Please select a counselor');
-                    return;
-                }
-                formData.append('assign_to', assign);
-            } else if (action === 'priority') {
-                const priority = prioritySelect.value;
-                if (!priority) {
-                    alert('Please select a priority');
-                    return;
-                }
-                formData.append('priority', priority);
-            } else if (action === 'status') {
-                const status = statusSelect.value;
-                if (!status) {
-                    alert('Please select a status');
-                    return;
-                }
-                formData.append('status', status);
-            }
-
-            if (!confirm(`Are you sure you want to ${action} ${selectedIds.length} inquiry(ies)?`)) return;
-
-            fetch('bulk_action.php', {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert(data.message);
-                        window.location.reload();
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    alert('An error occurred: ' + error);
-                });
         });
-
-        window.closeEmailModal = function () {
-            emailModal.classList.add('hidden');
-            document.getElementById('emailSubject').value = '';
-            document.getElementById('emailBody').value = '';
-        };
-
-        window.sendBulkEmail = function () {
-            const subject = document.getElementById('emailSubject').value.trim();
-            const body = document.getElementById('emailBody').value.trim();
-
-            if (!subject || !body) {
-                alert('Please fill in both subject and message');
-                return;
-            }
-
-            const selectedIds = Array.from(document.querySelectorAll('.inquiry-checkbox:checked')).map(cb => cb.value);
-
-            let formData = new FormData();
-            formData.append('action', 'email');
-            selectedIds.forEach(id => formData.append('inquiry_ids[]', id));
-            formData.append('email_subject', subject);
-            formData.append('email_body', body);
-
-            if (!confirm(`Send email to ${selectedIds.length} recipient(s)?`)) return;
-
-            fetch('bulk_action.php', {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert(data.message);
-                        closeEmailModal();
-                        window.location.reload();
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    alert('An error occurred: ' + error);
-                });
-        };
-    });
+    }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<!-- Email Modal Functions -->
+<script>
+    // Email Modal Functions
+    window.closeEmailModal = function () {
+        document.getElementById('emailModal').classList.add('hidden');
+        document.getElementById('emailSubject').value = '';
+        document.getElementById('emailBody').value = '';
+    };
+
+    window.sendBulkEmail = function () {
+        const subject = document.getElementById('emailSubject').value.trim();
+        const body = document.getElementById('emailBody').value.trim();
+
+        if (!subject || !body) {
+            Modal.show({ type: 'warning', title: 'Missing Fields', message: 'Please fill in both subject and message' });
+            return;
+        }
+
+        // Get selected IDs from Alpine.js component
+        const bulkContainer = document.querySelector('[x-ref="bulkContainer"]');
+        if (!bulkContainer || !bulkContainer.__x) {
+            Modal.show({ type: 'error', title: 'Error', message: 'Could not find selection data' });
+            return;
+        }
+        const selectedIds = bulkContainer.__x.$data.selected;
+
+        Modal.show({
+            type: 'info',
+            title: 'Confirm Send Email',
+            message: `Send email to ${selectedIds.length} recipient(s)?`,
+            confirmText: 'Send Email',
+            onConfirm: function () {
+                const formData = new FormData();
+                formData.append('action', 'email');
+                selectedIds.forEach(id => formData.append('inquiry_ids[]', id));
+                formData.append('email_subject', subject);
+                formData.append('email_body', body);
+
+                fetch('bulk_action.php', { method: 'POST', body: formData })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            Modal.show({ type: 'success', title: 'Success', message: data.message });
+                            closeEmailModal();
+                            setTimeout(() => window.location.reload(), 1500);
+                        } else {
+                            Modal.show({ type: 'error', title: 'Error', message: data.message });
+                        }
+                    })
+                    .catch(error => {
+                        Modal.show({ type: 'error', title: 'Error', message: 'An error occurred: ' + error });
+                    });
+            }
+        });
+    };
+</script>
+
+<?php require_once '../../templates/footer.php'; ?>

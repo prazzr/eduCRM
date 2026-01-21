@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 $user_id = $_SESSION['user_id'];
@@ -12,9 +12,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm_password = $_POST['confirm_password'];
 
     if (strlen($new_password) < 6) {
-        $error = "New password must be at least 6 characters long.";
+        redirectWithAlert('change_password.php', "New password must be at least 6 characters long.", 'error');
     } elseif ($new_password !== $confirm_password) {
-        $error = "New passwords do not match.";
+        redirectWithAlert('change_password.php', "New passwords do not match.", 'error');
     } else {
         // Verify current password
         $stmt = $pdo->prepare("SELECT password_hash FROM users WHERE id = ?");
@@ -26,15 +26,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $new_hash = password_hash($new_password, PASSWORD_DEFAULT);
             $update = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
             $update->execute([$new_hash, $user_id]);
-            $message = "Password changed successfully.";
+            redirectWithAlert('change_password.php', "Password changed successfully.", 'success');
         } else {
-            $error = "Incorrect current password.";
+            redirectWithAlert('change_password.php', "Incorrect current password.", 'error');
         }
     }
 }
 
 $pageDetails = ['title' => 'Change Password'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card" style="max-width: 500px; margin: 40px auto;">
@@ -73,4 +73,4 @@ require_once '../../includes/header.php';
     </form>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

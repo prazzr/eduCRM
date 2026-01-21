@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 requireAdmin();
@@ -11,7 +11,7 @@ if (!$id)
 try {
     $stmt = $pdo->prepare("DELETE FROM courses WHERE id = ?");
     $stmt->execute([$id]);
-    header("Location: courses.php?msg=deleted");
+    redirectWithAlert("courses.php", "Course deleted successfully!", "danger");
 } catch (PDOException $e) {
     die("Error: Cannot delete course. It may be linked to active classes. Delete the classes first.");
 }

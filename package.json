@@ -1,24 +1,16 @@
 {
-  "name": "crm",
-  "version": "1.0.0",
-  "description": "eduCRM — a small CRM for educational institutions.",
-  "main": "index.js",
+  "name": "educrm",
+  "version": "2.1.0",
+  "description": "EduCRM - Education Management System",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./public/assets/css/tailwind.css --minify",
+    "watch:css": "npx tailwindcss -i ./src/input.css -o ./public/assets/css/tailwind.css --watch",
+    "dev": "npm run watch:css"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/prazzr/eduCRM.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/prazzr/eduCRM/issues"
-  },
-  "homepage": "https://github.com/prazzr/eduCRM#readme",
   "devDependencies": {
-    "tailwindcss": "^4.1.18"
-  }
+    "tailwindcss": "^3.4.0"
+  },
+  "keywords": ["crm", "education", "php"],
+  "license": "UNLICENSED",
+  "private": true
 }

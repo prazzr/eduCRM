@@ -1,39 +1,40 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/MessagingFactory.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
-requireAdminOrCounselor();
+requireAdminCounselorOrBranchManager();
 
-MessagingFactory::init($pdo);
+\EduCRM\Services\MessagingFactory::init($pdo);
 
 // Handle template actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'create_template') {
-        $variables = [];
-        if (!empty($_POST['variables'])) {
-            $variables = array_map('trim', explode(',', $_POST['variables']));
+        try {
+            $variables = [];
+            if (!empty($_POST['variables'])) {
+                $variables = array_map('trim', explode(',', $_POST['variables']));
+            }
+
+            $stmt = $pdo->prepare("
+                INSERT INTO messaging_templates (name, message_type, category, subject, content, variables, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+
+            $stmt->execute([
+                $_POST['name'],
+                $_POST['message_type'],
+                $_POST['category'],
+                $_POST['subject'] ?? null,
+                $_POST['content'],
+                json_encode($variables),
+                $_SESSION['user_id']
+            ]);
+
+            redirectWithAlert('templates.php', 'Template created successfully', 'success');
+        } catch (Exception $e) {
+            redirectWithAlert('templates.php', 'Error creating template: ' . $e->getMessage(), 'error');
         }
-
-        $stmt = $pdo->prepare("
-            INSERT INTO messaging_templates (name, message_type, category, subject, content, variables, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ");
-
-        $stmt->execute([
-            $_POST['name'],
-            $_POST['message_type'],
-            $_POST['category'],
-            $_POST['subject'] ?? null,
-            $_POST['content'],
-            json_encode($variables),
-            $_SESSION['user_id']
-        ]);
-
-        $_SESSION['flash_message'] = 'Template created successfully';
-        $_SESSION['flash_type'] = 'success';
-        header('Location: templates.php');
-        exit;
     }
 }
 
@@ -47,92 +48,115 @@ $stmt = $pdo->query("
 $templates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $pageDetails = ['title' => 'Message Templates'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
-<div class="mb-6 flex justify-between items-center">
+<div class="page-header">
     <div>
-        <h1 class="text-2xl font-bold text-slate-800">📝 Message Templates</h1>
-        <p class="text-slate-600 mt-1">Manage reusable message templates</p>
+        <h1 class="page-title">Message Templates</h1>
+        <p class="text-slate-500 mt-1 text-sm">Manage reusable message templates</p>
     </div>
-    <button onclick="showCreateModal()" class="btn">+ Create Template</button>
+    <button onclick="showCreateModal()" class="btn btn-primary">
+        <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Create Template
+    </button>
 </div>
 
 <?php renderFlashMessage(); ?>
 
-<!-- Templates Grid -->
-<?php if (count($templates) > 0): ?>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <?php foreach ($templates as $template):
-            $variables = json_decode($template['variables'], true) ?? [];
-            $icons = ['sms' => '📱', 'whatsapp' => '💬', 'viber' => '📞', 'email' => '📧'];
-            $icon = $icons[$template['message_type']] ?? '📝';
-            ?>
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <div class="flex items-start justify-between mb-4">
-                    <div class="text-4xl">
-                        <?php echo $icon; ?>
-                    </div>
-                    <span
-                        class="px-2 py-1 <?php echo $template['is_active'] ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'; ?> text-xs font-medium rounded">
-                        <?php echo $template['is_active'] ? 'Active' : 'Inactive'; ?>
-                    </span>
-                </div>
-
-                <h3 class="font-bold text-slate-800 mb-2">
-                    <?php echo htmlspecialchars($template['name']); ?>
-                </h3>
-
-                <?php if ($template['category']): ?>
-                    <span class="inline-block px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded mb-3">
-                        <?php echo ucfirst($template['category']); ?>
-                    </span>
-                <?php endif; ?>
-
-                <p class="text-sm text-slate-600 mb-4 line-clamp-3">
-                    <?php echo htmlspecialchars($template['content']); ?>
-                </p>
-
-                <?php if (count($variables) > 0): ?>
-                    <div class="mb-4">
-                        <p class="text-xs font-medium text-slate-700 mb-2">Variables:</p>
-                        <div class="flex flex-wrap gap-1">
-                            <?php foreach ($variables as $var): ?>
-                                <span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded font-mono">{
-                                    <?php echo $var; ?>}
+<!-- Templates List -->
+<div class="card">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
+                    <th class="p-3 font-semibold">Template Name</th>
+                    <th class="p-3 font-semibold">Category</th>
+                    <th class="p-3 font-semibold">Type</th>
+                    <th class="p-3 font-semibold">Content Preview</th>
+                    <th class="p-3 font-semibold">Status</th>
+                    <th class="p-3 font-semibold text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                <?php if (count($templates) > 0): ?>
+                    <?php foreach ($templates as $template):
+                        $variables = json_decode($template['variables'], true) ?? [];
+                        ?>
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="p-3">
+                                <div class="font-medium text-slate-800"><?php echo htmlspecialchars($template['name']); ?></div>
+                                <div class="text-xs text-slate-400 mt-0.5">
+                                    Used <?php echo number_format($template['usage_count']); ?> times
+                                </div>
+                            </td>
+                            <td class="p-3">
+                                <?php if ($template['category']): ?>
+                                    <span class="inline-block px-2 py-0.5 bg-primary-50 text-primary-700 text-xs rounded">
+                                        <?php echo ucfirst($template['category']); ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="text-slate-400">-</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="p-3">
+                                <strong class="text-xs font-semibold text-slate-600 uppercase">
+                                    <?php echo htmlspecialchars($template['message_type']); ?>
+                                </strong>
+                            </td>
+                            <td class="p-3">
+                                <div class="text-sm text-slate-600 truncate max-w-xs"
+                                    title="<?php echo htmlspecialchars($template['content']); ?>">
+                                    <?php echo htmlspecialchars($template['content']); ?>
+                                </div>
+                                <?php if (count($variables) > 0): ?>
+                                    <div class="flex flex-wrap gap-1 mt-1">
+                                        <?php foreach (array_slice($variables, 0, 3) as $var): ?>
+                                            <span
+                                                class="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded font-mono">{<?php echo $var; ?>}</span>
+                                        <?php endforeach; ?>
+                                        <?php if (count($variables) > 3): ?>
+                                            <span class="text-[10px] text-slate-400">+<?php echo count($variables) - 3; ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                            <td class="p-3">
+                                <span
+                                    class="px-2 py-1 <?php echo $template['is_active'] ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'; ?> text-xs font-medium rounded">
+                                    <?php echo $template['is_active'] ? 'Active' : 'Inactive'; ?>
                                 </span>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
+                            </td>
+                            <td class="p-3 text-right">
+                                <div class="flex gap-2 justify-end">
+                                    <button onclick="previewTemplate(<?php echo $template['id']; ?>)" class="action-btn blue"
+                                        title="Preview">
+                                        <?php echo \EduCRM\Services\NavigationService::getIcon('eye', 16); ?>
+                                    </button>
+                                    <button
+                                        onclick="toggleTemplate(<?php echo $template['id']; ?>, <?php echo $template['is_active'] ? 'false' : 'true'; ?>)"
+                                        class="action-btn <?php echo $template['is_active'] ? 'red' : 'green'; ?>"
+                                        title="<?php echo $template['is_active'] ? 'Disable' : 'Enable'; ?>">
+                                        <?php echo \EduCRM\Services\NavigationService::getIcon($template['is_active'] ? 'pause' : 'play', 16); ?>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="6" class="p-8 text-center">
+                            <div class="flex flex-col items-center justify-center text-slate-400">
+                                <?php echo \EduCRM\Services\NavigationService::getIcon('file-text', 48); ?>
+                                <h3 class="mt-2 text-sm font-medium text-slate-900">No Templates Yet</h3>
+                                <p class="mt-1 text-sm text-slate-500">Create your first message template to save time.</p>
+                            </div>
+                        </td>
+                    </tr>
                 <?php endif; ?>
-
-                <div class="text-xs text-slate-500 mb-4">
-                    Used
-                    <?php echo number_format($template['usage_count']); ?> times
-                </div>
-
-                <div class="flex gap-2">
-                    <button onclick="previewTemplate(<?php echo $template['id']; ?>)"
-                        class="flex-1 btn-secondary px-3 py-2 text-xs rounded-lg">
-                        Preview
-                    </button>
-                    <button
-                        onclick="toggleTemplate(<?php echo $template['id']; ?>, <?php echo $template['is_active'] ? 'false' : 'true'; ?>)"
-                        class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium">
-                        <?php echo $template['is_active'] ? 'Disable' : 'Enable'; ?>
-                    </button>
-                </div>
-            </div>
-        <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
-<?php else: ?>
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
-        <div class="text-6xl mb-4">📝</div>
-        <h3 class="text-lg font-semibold text-slate-800 mb-2">No Templates Yet</h3>
-        <p class="text-slate-600 mb-4">Create your first message template</p>
-        <button onclick="showCreateModal()" class="btn inline-block">+ Create Template</button>
-    </div>
-<?php endif; ?>
+</div>
 
 <!-- Create Template Modal -->
 <div id="createModal"
@@ -268,12 +292,14 @@ require_once '../../includes/header.php';
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    window.location.reload();
+                    Toast.success(activate ? 'Template activated' : 'Template deactivated');
+                    setTimeout(() => window.location.reload(), 500);
                 } else {
-                    alert('Error: ' + data.message);
+                    Modal.error(data.message, 'Error');
                 }
-            });
+            })
+            .catch(err => Modal.error('Network error: ' + err.message, 'Connection Error'));
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 // Courses can initially be managed by Admin only
@@ -13,23 +13,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name) {
         $stmt = $pdo->prepare("INSERT INTO courses (name, description) VALUES (?, ?)");
         $stmt->execute([$name, $description]);
-        redirectWithAlert("courses.php", "Course added!");
+        redirectWithAlert("courses.php", "Course added!", 'success');
+    } else {
+        redirectWithAlert("courses.php", "Course name is required.", 'error');
     }
 }
 
 $courses = $pdo->query("SELECT * FROM courses ORDER BY name")->fetchAll();
 
 $pageDetails = ['title' => 'Manage Courses'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
     <h2>Manage Courses</h2>
-    <?php if ($message): ?>
-        <div style="background: #dcfce7; color: #166534; padding: 10px; border-radius: 6px; margin: 10px 0;">
-            <?php echo $message; ?>
-        </div>
-    <?php endif; ?>
+
 
     <?php renderFlashMessage(); ?>
 
@@ -67,9 +65,8 @@ require_once '../../includes/header.php';
                         <?php if (hasRole('admin')): ?>
                             <a href="course_edit.php?id=<?php echo $c['id']; ?>" class="btn btn-secondary"
                                 style="font-size: 11px; padding: 5px 8px;">Edit</a>
-                            <a href="course_delete.php?id=<?php echo $c['id']; ?>" class="btn"
-                                style="font-size: 11px; padding: 5px 8px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;"
-                                onclick="return confirm('Are you sure you want to delete this course?')">Delete</a>
+                            <a href="#" onclick="confirmDelete(<?php echo $c['id']; ?>)" class="btn"
+                                style="font-size: 11px; padding: 5px 8px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">Delete</a>
                         <?php else: ?>
                             <span style="color: #64748b; font-size: 11px;">View Only</span>
                         <?php endif; ?>
@@ -84,4 +81,18 @@ require_once '../../includes/header.php';
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>
+
+<script>
+    function confirmDelete(id) {
+        Modal.show({
+            type: 'error',
+            title: 'Delete Course?',
+            message: 'Are you sure you want to delete this course? All associated classes will be deleted.',
+            confirmText: 'Yes, Delete It',
+            onConfirm: function () {
+                window.location.href = 'course_delete.php?id=' + id;
+            }
+        });
+    }
+</script>

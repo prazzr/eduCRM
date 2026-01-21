@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 // Admin/Counselor only
@@ -19,7 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_app'])) {
 
     $stmt = $pdo->prepare("INSERT INTO university_applications (student_id, university_name, course_name, country) VALUES (?, ?, ?, ?)");
     $stmt->execute([$student_id, $uni, $course, $country]);
-    $message = "Application tracked.";
+
+    // Log Activity
+    $logMsg = "Application started for {$uni} ({$country})";
+    if ($course)
+        $logMsg .= " - {$course}";
+    $pdo->prepare("INSERT INTO student_logs (student_id, author_id, type, message) VALUES (?, ?, 'status', ?)")
+        ->execute([$student_id, $_SESSION['user_id'], $logMsg]);
+
+    redirectWithAlert("tracker.php", "Application tracked.", "success");
 }
 
 // 2. Update Status
@@ -28,9 +36,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $status = $_POST['status'];
     $notes = sanitize($_POST['notes']);
 
+    // Fetch details for logging
+    $app = $pdo->query("SELECT student_id, university_name FROM university_applications WHERE id = $app_id")->fetch();
+
     $stmt = $pdo->prepare("UPDATE university_applications SET status = ?, notes = ? WHERE id = ?");
     $stmt->execute([$status, $notes, $app_id]);
-    $message = "Status updated.";
+
+    // Log Activity
+    if ($app) {
+        $statusLabel = ucwords(str_replace('_', ' ', $status));
+        $logMsg = "Application for {$app['university_name']} updated to: {$statusLabel}";
+        $pdo->prepare("INSERT INTO student_logs (student_id, author_id, type, message) VALUES (?, ?, 'status', ?)")
+            ->execute([$app['student_id'], $_SESSION['user_id'], $logMsg]);
+    }
+
+    redirectWithAlert("tracker.php", "Status updated.", "success");
 }
 
 // Fetch Students (Multi-role support)
@@ -52,7 +72,7 @@ $apps = $pdo->query("
 ")->fetchAll();
 
 $pageDetails = ['title' => 'Application Tracker'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
@@ -62,11 +82,7 @@ require_once '../../includes/header.php';
             Application</button>
     </div>
 
-    <?php if ($message): ?>
-        <div style="background: #dcfce7; color: #166534; padding: 10px; border-radius: 6px; margin-bottom: 20px;">
-            <?php echo $message; ?>
-        </div>
-    <?php endif; ?>
+    <?php renderFlashMessage(); ?>
 
     <!-- Add Form (Hidden by default) -->
     <div id="new-app-form" class="card" style="background: #f8fafc; display: none; margin-bottom: 20px;">
@@ -75,25 +91,44 @@ require_once '../../includes/header.php';
             <input type="hidden" name="add_app" value="1">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                 <div class="form-group">
-                    <label>Student</label>
-                    <select name="student_id" class="form-control" required>
-                        <option value="">Select Student...</option>
-                        <?php foreach ($students as $s): ?>
-                            <option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label for="studentSearch">Student</label>
+                    <div class="relative">
+                        <input type="text" id="studentSearch" class="form-control"
+                            placeholder="Search student by name..." autocomplete="off">
+                        <input type="hidden" name="student_id" id="studentId" required>
+                    </div>
+
+                    <!-- SearchableDropdown loaded via header.php -->
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function () {
+                            const studentsData = <?php echo json_encode(array_map(function ($s) {
+                                return ['id' => $s['id'], 'name' => $s['name']];
+                            }, $students)); ?>;
+
+                            new SearchableDropdown({
+                                inputId: 'studentSearch',
+                                hiddenInputId: 'studentId',
+                                data: studentsData,
+                                displayField: 'name',
+                                valueField: 'id',
+                                placeholder: 'Type to search student...',
+                                maxResults: 10
+                            });
+                        });
+                    </script>
                 </div>
                 <div class="form-group">
-                    <label>University Name</label>
-                    <input type="text" name="university_name" class="form-control" required>
+                    <label for="university_name">University Name</label>
+                    <input type="text" name="university_name" id="university_name" class="form-control"
+                        autocomplete="organization" required>
                 </div>
                 <div class="form-group">
-                    <label>Course</label>
-                    <input type="text" name="course_name" class="form-control">
+                    <label for="course_name">Course</label>
+                    <input type="text" name="course_name" id="course_name" class="form-control" autocomplete="off">
                 </div>
                 <div class="form-group">
-                    <label>Country</label>
-                    <select name="country" class="form-control">
+                    <label for="country">Country</label>
+                    <select name="country" id="country" class="form-control" autocomplete="country-name">
                         <option value="USA">USA</option>
                         <option value="UK">UK</option>
                         <option value="Australia">Australia</option>
@@ -154,9 +189,8 @@ require_once '../../includes/header.php';
                                 class="btn btn-secondary" style="padding: 5px 10px; font-size: 11px;">Update</button>
                             <a href="../documents/list.php?student_id=<?php echo $a['student_id']; ?>" class="btn"
                                 style="padding: 5px 10px; font-size: 11px;">Docs</a>
-                            <a href="delete.php?id=<?php echo $a['id']; ?>" class="btn"
-                                style="padding: 5px 10px; font-size: 11px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;"
-                                onclick="return confirm('Delete this application record?')">Delete</a>
+                            <a href="#" onclick="confirmDelete(<?php echo $a['id']; ?>)" class="btn"
+                                style="padding: 5px 10px; font-size: 11px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">Delete</a>
                         </div>
                     </td>
                 </tr>
@@ -175,7 +209,7 @@ require_once '../../includes/header.php';
             <input type="hidden" name="app_id" id="modal_app_id">
 
             <div class="form-group">
-                <label>Status</label>
+                <label for="modal_status">Status</label>
                 <select name="status" id="modal_status" class="form-control">
                     <option value="applied">Applied</option>
                     <option value="offer_received">Offer Received</option>
@@ -186,7 +220,7 @@ require_once '../../includes/header.php';
                 </select>
             </div>
             <div class="form-group">
-                <label>Notes</label>
+                <label for="modal_notes">Notes</label>
                 <textarea name="notes" id="modal_notes" class="form-control"></textarea>
             </div>
 
@@ -208,4 +242,18 @@ require_once '../../includes/header.php';
     }
 </script>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>
+
+<script>
+    function confirmDelete(id) {
+        Modal.show({
+            type: 'error',
+            title: 'Delete Application?',
+            message: 'Are you sure you want to delete this application record?',
+            confirmText: 'Yes, Delete It',
+            onConfirm: function () {
+                window.location.href = 'delete.php?id=' + id;
+            }
+        });
+    }
+</script>

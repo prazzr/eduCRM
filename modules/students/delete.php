@@ -1,39 +1,42 @@
 <?php
-require_once '../../config.php';
+/**
+ * Student Delete
+ * Handles student deletion with cascading related records cleanup
+ */
+require_once '../../app/bootstrap.php';
 requireLogin();
-
 requireAdmin();
 
-$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-if (!$id)
-    die("Invalid ID");
+// Validate ID parameter
+$id = requireIdParam();
 
 try {
     $pdo->beginTransaction();
 
-    // Delete roles
-    $pdo->prepare("DELETE FROM user_roles WHERE user_id = ?")->execute([$id]);
+    // Log the deletion before removing
+    logAction('student_delete', "Deleted student ID: {$id}");
 
-    // Delete logs
-    $pdo->prepare("DELETE FROM student_logs WHERE student_id = ?")->execute([$id]);
+    // Delete related records in proper order (respecting foreign keys)
+    $relatedTables = [
+        'user_roles' => 'user_id',
+        'student_logs' => 'student_id',
+        'student_documents' => 'student_id',
+        'enrollments' => 'student_id',
+        'test_scores' => 'student_id'
+    ];
+    
+    foreach ($relatedTables as $table => $column) {
+        $pdo->prepare("DELETE FROM {$table} WHERE {$column} = ?")->execute([$id]);
+    }
 
-    // Delete documents (files remain on disk for safety in this demo)
-    $pdo->prepare("DELETE FROM student_documents WHERE student_id = ?")->execute([$id]);
-
-    // Delete enrollments
-    $pdo->prepare("DELETE FROM enrollments WHERE student_id = ?")->execute([$id]);
-
-    // Delete scores
-    $pdo->prepare("DELETE FROM test_scores WHERE student_id = ?")->execute([$id]);
-
-    // Finally delete user
+    // Finally delete user record
     $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
 
     $pdo->commit();
-    header("Location: list.php?msg=deleted");
+    redirectWithAlert("list.php", "Student deleted successfully!", "danger");
 } catch (PDOException $e) {
-    if ($pdo->inTransaction())
+    if ($pdo->inTransaction()) {
         $pdo->rollBack();
+    }
     die("Error deleting student: " . $e->getMessage());
 }
-exit;

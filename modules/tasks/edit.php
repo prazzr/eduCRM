@@ -1,10 +1,15 @@
 <?php
-require_once '../../config.php';
-require_once '../../includes/services/TaskService.php';
+/**
+ * Edit Task
+ * Updates task details with status and assignment changes
+ */
+require_once '../../app/bootstrap.php';
+
+
 
 requireLogin();
 
-$taskService = new TaskService($pdo);
+$taskService = new \EduCRM\Services\TaskService($pdo);
 $error = '';
 $success = '';
 
@@ -12,32 +17,30 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'complete') {
     $taskId = $_POST['task_id'] ?? 0;
     if ($taskService->updateTask($taskId, ['status' => 'completed'])) {
+        logAction('task_complete', "Completed task ID: {$taskId}");
         header('Location: list.php');
         exit;
     }
 }
 
-// Get task ID
-$taskId = $_GET['id'] ?? 0;
+// Validate task ID parameter
+$taskId = requireIdParam();
 $task = $taskService->getTask($taskId);
 
 if (!$task) {
-    header('Location: list.php');
-    exit;
+    redirectWithAlert("list.php", "Task not found", "danger");
 }
 
-// Check permission (admin or assigned user)
+// Check permission (admin or assigned user can edit)
 if (!hasRole('admin') && $task['assigned_to'] != $_SESSION['user_id']) {
-    header('Location: list.php');
-    exit;
+    redirectWithAlert("list.php", "You don't have permission to edit this task", "danger");
 }
 
 $pageDetails = ['title' => 'Edit Task'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 
-// Get all users for assignment dropdown
-$usersStmt = $pdo->query("SELECT id, name FROM users ORDER BY name");
-$users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+// Get all users for assignment dropdown (using helper)
+$users = users()->getAllUsers();
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
@@ -49,9 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $due_date = $_POST['due_date'] ?? null;
 
     if (empty($title)) {
-        $error = 'Task title is required.';
+        redirectWithAlert("edit.php?id=$taskId", 'Task title is required.', 'error');
     } elseif (empty($assigned_to)) {
-        $error = 'Please assign the task to a user.';
+        redirectWithAlert("edit.php?id=$taskId", 'Please assign the task to a user.', 'error');
     } else {
         $updateData = [
             'title' => $title,
@@ -63,11 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         ];
 
         if ($taskService->updateTask($taskId, $updateData)) {
-            $success = 'Task updated successfully!';
-            // Refresh task data
-            $task = $taskService->getTask($taskId);
+            redirectWithAlert("edit.php?id=$taskId", 'Task updated successfully!', 'success');
         } else {
-            $error = 'Failed to update task. Please try again.';
+            redirectWithAlert("edit.php?id=$taskId", 'Failed to update task. Please try again.', 'error');
         }
     }
 }
@@ -142,12 +143,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                             class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                             <option value="low" <?php echo ($task['priority'] === 'low') ? 'selected' : ''; ?>>Low
                             </option>
-                            <option value="medium" <?php echo ($task['priority'] === 'medium') ? 'selected' : ''; ?>
-                                >Medium</option>
+                            <option value="medium" <?php echo ($task['priority'] === 'medium') ? 'selected' : ''; ?>>
+                                Medium</option>
                             <option value="high" <?php echo ($task['priority'] === 'high') ? 'selected' : ''; ?>>High
                             </option>
-                            <option value="urgent" <?php echo ($task['priority'] === 'urgent') ? 'selected' : ''; ?>
-                                >Urgent</option>
+                            <option value="urgent" <?php echo ($task['priority'] === 'urgent') ? 'selected' : ''; ?>>
+                                Urgent</option>
                         </select>
                     </div>
                 </div>
@@ -160,13 +161,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                         </label>
                         <select id="status" name="status"
                             class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                            <option value="pending" <?php echo ($task['status'] === 'pending') ? 'selected' : ''; ?>
-                                >Pending</option>
+                            <option value="pending" <?php echo ($task['status'] === 'pending') ? 'selected' : ''; ?>>
+                                Pending</option>
                             <option value="in_progress" <?php echo ($task['status'] === 'in_progress') ? 'selected' : ''; ?>>In Progress</option>
-                            <option value="completed" <?php echo ($task['status'] === 'completed') ? 'selected' : ''; ?>
-                                >Completed</option>
-                            <option value="cancelled" <?php echo ($task['status'] === 'cancelled') ? 'selected' : ''; ?>
-                                >Cancelled</option>
+                            <option value="completed" <?php echo ($task['status'] === 'completed') ? 'selected' : ''; ?>>
+                                Completed</option>
+                            <option value="cancelled" <?php echo ($task['status'] === 'cancelled') ? 'selected' : ''; ?>>
+                                Cancelled</option>
                         </select>
                     </div>
 
@@ -262,4 +263,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     </div>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

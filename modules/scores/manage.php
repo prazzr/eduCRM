@@ -1,5 +1,5 @@
 <?php
-require_once '../../config.php';
+require_once '../../app/bootstrap.php';
 requireLogin();
 
 // Redirect to new Student Management
@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $pdo->prepare("INSERT INTO test_scores (student_id, test_type, overall_score, listening, reading, writing, speaking) VALUES (?, ?, ?, ?, ?, ?, ?)");
     $stmt->execute([$student_id, $type, $overall, $l, $r, $w, $s]);
-    $message = "Score added.";
+    redirectWithAlert("manage.php", "Score added successfully.", "success");
 }
 
 $scores = $pdo->query("
@@ -33,7 +33,7 @@ $scores = $pdo->query("
 ")->fetchAll();
 
 $pageDetails = ['title' => 'Test Scores'];
-require_once '../../includes/header.php';
+require_once '../../templates/header.php';
 ?>
 
 <div class="card">
@@ -110,4 +110,4 @@ require_once '../../includes/header.php';
     </table>
 </div>
 
-<?php require_once '../../includes/footer.php'; ?>
+<?php require_once '../../templates/footer.php'; ?>

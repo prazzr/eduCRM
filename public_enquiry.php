@@ -1,10 +1,24 @@
 <?php
 // Standalone config for public access (or just include config and ensure no requireLogin)
-// We'll reuse config.php but NOT call requireLogin()
-require_once 'config.php';
+// We'll reuse config/config.php but NOT call requireLogin()
+require_once 'app/bootstrap.php';
 
+session_start();
 $message = '';
 $error = '';
+
+if (isset($_SESSION['flash_msg'])) {
+    if (is_array($_SESSION['flash_msg'])) {
+        $msg = $_SESSION['flash_msg'];
+        if ($msg['type'] === 'success')
+            $message = $msg['message'];
+        else
+            $error = $msg['message'];
+    } else {
+        $message = $_SESSION['flash_msg'];
+    }
+    unset($_SESSION['flash_msg']);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = sanitize($_POST['name']);
@@ -19,15 +33,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($name && $email) {
         try {
-            $stmt = $pdo->prepare("INSERT INTO inquiries (name, email, phone, intended_country, intended_course, education_level, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$name, $email, $phone, $country, $course, $edu_level, $assigned_to]);
+            // Resolve country_id from country name
+            $country_id = null;
+            if (!empty($country)) {
+                $cStmt = $pdo->prepare("SELECT id FROM countries WHERE LOWER(name) = LOWER(?) OR LOWER(code) = LOWER(?) LIMIT 1");
+                $cStmt->execute([$country, $country]);
+                $country_id = $cStmt->fetchColumn() ?: null;
+            }
+
+            // Resolve education_level_id from education level name
+            $education_level_id = null;
+            if (!empty($edu_level)) {
+                $eStmt = $pdo->prepare("SELECT id FROM education_levels WHERE LOWER(name) LIKE CONCAT('%', LOWER(?), '%') LIMIT 1");
+                $eStmt->execute([$edu_level]);
+                $education_level_id = $eStmt->fetchColumn() ?: null;
+            }
+
+            // Insert using normalized FK columns
+            $stmt = $pdo->prepare("INSERT INTO inquiries (name, email, phone, country_id, intended_course, education_level_id, assigned_to, status_id, priority_id) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 3)");
+            $stmt->execute([$name, $email, $phone, $country_id, $course, $education_level_id, $assigned_to]);
 
             // Send Email Receipt
-            require_once 'includes/services/EmailService.php';
-            $emailService = new EmailService();
+            require_once 'app/services/EmailService.php';
+            $emailService = new \EduCRM\Services\EmailService();
             $emailService->sendInquiryReceipt($email, $name);
 
-            $message = "Thank you! Your inquiry has been received. We will contact you shortly.";
+            // PRG Redirect
+            $_SESSION['flash_msg'] = ['message' => "Thank you! Your inquiry has been received. We will contact you shortly.", 'type' => 'success'];
+            header("Location: public_enquiry.php");
+            exit;
         } catch (PDOException $e) {
             $error = "Error: " . $e->getMessage();
         }
@@ -43,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Start Your Journey - EduCRM</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="public/assets/css/style.css">
     <style>
         body {
             background: #f8fafc;
@@ -122,11 +156,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label>Interested Country</label>
                         <select name="country" class="form-control">
                             <option value="">Select Country</option>
-                            <option value="USA">USA</option>
-                            <option value="UK">UK</option>
                             <option value="Australia">Australia</option>
                             <option value="Canada">Canada</option>
-                            <option value="Europe">Europe</option>
+                            <option value="United Kingdom">United Kingdom</option>
+                            <option value="United States">United States</option>
+                            <option value="New Zealand">New Zealand</option>
+                            <option value="Germany">Germany</option>
+                            <option value="Japan">Japan</option>
                         </select>
                     </div>
                     <div class="form-group">

@@ -4,14 +4,14 @@
  * Returns version history for a document
  */
 
-require_once '../../config.php';
-require_once '../../includes/services/DocumentService.php';
+require_once '../../app/bootstrap.php';
+
 
 requireLogin();
 
 header('Content-Type: application/json');
 
-$documentService = new DocumentService($pdo);
+$documentService = new \EduCRM\Services\DocumentService($pdo);
 
 $documentId = $_GET['id'] ?? null;
 

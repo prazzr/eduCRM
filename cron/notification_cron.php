@@ -3,20 +3,17 @@
  * Email Notification Cron Job
  * 
  * This script should be run periodically (e.g., every 15 minutes) via cron:
- * */15 * * * * /usr/bin/php /path/to/educrm/cron/notification_cron.php
+ * Schedule: 0,15,30,45 * * * * /usr/bin/php /path/to/educrm/cron/notification_cron.php
  * 
  * Or on Windows Task Scheduler:
  * C:\xampp\php\php.exe C:\xampp\htdocs\CRM\cron\notification_cron.php
  */
 
-require_once dirname(__DIR__) . '/config.php';
-require_once dirname(__DIR__) . '/includes/services/EmailNotificationService.php';
-require_once dirname(__DIR__) . '/includes/services/AppointmentService.php';
-require_once dirname(__DIR__) . '/includes/services/TaskService.php';
+require_once dirname(__DIR__) . '/app/bootstrap.php';
 
-$emailService = new EmailNotificationService($pdo);
-$appointmentService = new AppointmentService($pdo);
-$taskService = new TaskService($pdo);
+$emailService = new \EduCRM\Services\EmailNotificationService($pdo);
+$appointmentService = new \EduCRM\Services\AppointmentService($pdo);
+$taskService = new \EduCRM\Services\TaskService($pdo);
 
 echo "[" . date('Y-m-d H:i:s') . "] Starting notification cron job...\n";
 
