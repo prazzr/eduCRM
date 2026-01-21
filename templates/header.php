@@ -112,8 +112,12 @@
                         </div>
                         <div class="user-actions">
                             <a href="<?php echo BASE_URL; ?>modules/users/change_password.php" class="user-action-btn"
-                                title="Settings">
-                                <?php echo \EduCRM\Services\NavigationService::getIcon('settings', 16); ?>
+                                title="Change Password">
+                                <?php echo \EduCRM\Services\NavigationService::getIcon('key', 16); ?>
+                            </a>
+                            <a href="<?php echo BASE_URL; ?>modules/users/notifications.php" class="user-action-btn"
+                                title="Notification Settings">
+                                <?php echo \EduCRM\Services\NavigationService::getIcon('bell', 16); ?>
                             </a>
                             <a href="<?php echo BASE_URL; ?>logout.php" class="user-action-btn" title="Logout">
                                 <?php echo \EduCRM\Services\NavigationService::getIcon('log-out', 16); ?>

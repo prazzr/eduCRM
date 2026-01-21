@@ -17,14 +17,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             $stmt = $pdo->prepare("
-                INSERT INTO messaging_templates (name, message_type, category, subject, content, variables, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messaging_templates (name, message_type, category, event_key, subject, content, variables, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $stmt->execute([
                 $_POST['name'],
                 $_POST['message_type'],
                 $_POST['category'],
+                !empty($_POST['event_key']) ? $_POST['event_key'] : null,
                 $_POST['subject'] ?? null,
                 $_POST['content'],
                 json_encode($variables),
@@ -214,6 +215,22 @@ require_once '../../templates/header.php';
                     <label class="block text-sm font-medium text-slate-700 mb-2">Subject (for Email/WhatsApp)</label>
                     <input type="text" name="subject" class="w-full px-3 py-2 border border-slate-300 rounded-lg"
                         placeholder="Optional subject line">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">System Event (Link to
+                        Notification)</label>
+                    <select name="event_key" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                        <option value="">-- None (Manual Use) --</option>
+                        <option value="task_assigned">Task Assignment</option>
+                        <option value="task_overdue">Task Overdue</option>
+                        <option value="appointment_reminder">Appointment Reminder</option>
+                        <option value="welcome_email">New Account Welcome</option>
+                        <option value="visa_stage_update">Visa Stage Update</option>
+                        <option value="document_status">Document Status Change</option>
+                    </select>
+                    <p class="text-xs text-slate-500 mt-1">Select an event to use this template for automated system
+                        notifications.</p>
                 </div>
 
                 <div>

@@ -43,19 +43,32 @@ class TaskService
             $data['due_date'] ?? null
         ]);
 
-        // Phase 2B & 3B: Send email and SMS notification
+        // Phase 5: Unified Notification System
         if ($result) {
             $taskId = $this->pdo->lastInsertId();
             try {
-                // Send SMS notification (Phase 3B)
-                $this->sendTaskSMS($taskId, 'assignment');
+                // Prepare variable data for templates
+                $notificationData = [
+                    'task_id' => $taskId,
+                    'task_title' => $data['title'],
+                    'priority' => $data['priority'] ?? 'medium',
+                    'due_date' => $data['due_date'] ? date('M d, Y', strtotime($data['due_date'])) : 'No due date',
+                    'created_by_name' => $_SESSION['user_name'] ?? 'System'
+                ];
 
+                // Load Services
                 require_once dirname(__DIR__) . '/services/EmailNotificationService.php';
+                require_once dirname(__DIR__) . '/services/UnifiedNotificationService.php';
+
                 $emailService = new \EduCRM\Services\EmailNotificationService($this->pdo);
-                $emailService->sendTaskAssignmentNotification($taskId, $data['assigned_to']);
+                $unifiedService = new \EduCRM\Services\UnifiedNotificationService($this->pdo, $emailService);
+
+                // Dispatch Event
+                $unifiedService->dispatch('task_assigned', (int) $data['assigned_to'], $notificationData);
+
             } catch (\Exception $e) {
                 // Log error but don't fail task creation
-                error_log("Failed to send task assignment notification: " . $e->getMessage());
+                error_log("Failed to send unified task notification: " . $e->getMessage());
             }
         }
 
@@ -63,8 +76,6 @@ class TaskService
     }
 
     /**
-     * Get task by ID
-     */
     public function getTask($taskId)
     {
         $stmt = $this->pdo->prepare("
