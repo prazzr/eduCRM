@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!empty($allowed) && !in_array($newStageName, $allowed)) {
             $transitionValid = false;
-            redirectWithAlert("update.php?student_id=$student_id", "Invalid transition: Cannot move from '{$data['current_stage']}' to '$newStageName'. Allowed: " . implode(', ', $allowed), 'error');
+            redirectWithAlert("update.php?student_id=$student_id", "Action not allowed. From '{$data['current_stage']}' you can only move to: " . implode(', ', $allowed), 'error');
         }
     }
 

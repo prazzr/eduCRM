@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
         if ($entityId) {
             $errorUrl .= "?entity_type=$entityType&entity_id=$entityId";
         }
-        redirectWithAlert($errorUrl, 'Error: ' . $e->getMessage(), 'error');
+        redirectWithAlert($errorUrl, 'Unable to upload document. Please check the file and try again.', 'error');
     }
 }
 

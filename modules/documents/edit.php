@@ -24,9 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($title) {
         $stmt = $pdo->prepare("UPDATE student_documents SET title = ? WHERE id = ?");
         $stmt->execute([$title, $id]);
-        redirectWithAlert("list.php?student_id=" . $doc['student_id'], "Document title updated!", 'warning');
+        redirectWithAlert("list.php?student_id=" . $doc['student_id'], "Document title updated successfully.", 'success');
     } else {
-        redirectWithAlert("edit.php?id=$id", "Title is required.", 'error');
+        redirectWithAlert("edit.php?id=$id", "Please provide a document title.", 'error');
     }
 }
 

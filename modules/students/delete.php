@@ -24,7 +24,7 @@ try {
         'enrollments' => 'student_id',
         'test_scores' => 'student_id'
     ];
-    
+
     foreach ($relatedTables as $table => $column) {
         $pdo->prepare("DELETE FROM {$table} WHERE {$column} = ?")->execute([$id]);
     }
@@ -33,7 +33,7 @@ try {
     $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
 
     $pdo->commit();
-    redirectWithAlert("list.php", "Student deleted successfully!", "danger");
+    redirectWithAlert("list.php", "Student deleted successfully!", "success");
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

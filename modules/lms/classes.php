@@ -14,9 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (hasRole('admin') || hasRole('teach
     if ($name && $course_id) {
         $stmt = $pdo->prepare("INSERT INTO classes (course_id, teacher_id, name, start_date) VALUES (?, ?, ?, ?)");
         $stmt->execute([$course_id, $teacher_id, $name, $start_date]);
-        redirectWithAlert("classes.php", "Class created!", 'success');
+        redirectWithAlert("classes.php", "Class created successfully!", 'success');
     } else {
-        redirectWithAlert("classes.php", "Class Name and Course are required.", 'error');
+        redirectWithAlert("classes.php", "Please provide a class name and select a course.", 'error');
     }
 }
 

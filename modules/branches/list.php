@@ -28,9 +28,9 @@ if (isset($_GET['select_branch'])) {
 if (isset($_GET['delete'])) {
     $deleteId = (int) $_GET['delete'];
     if ($branchService->deleteBranch($deleteId)) {
-        redirectWithAlert("list.php", "Branch deactivated successfully.", "danger");
+        redirectWithAlert("list.php", "Branch deactivated successfully.", "success");
     } else {
-        redirectWithAlert("list.php", "Cannot delete headquarters or branch with active data.", "danger");
+        redirectWithAlert("list.php", "Unable to deactivate: HQ or branches with active data cannot be removed.", "error");
     }
 }
 

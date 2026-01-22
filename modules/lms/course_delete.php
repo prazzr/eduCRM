@@ -11,7 +11,7 @@ if (!$id)
 try {
     $stmt = $pdo->prepare("DELETE FROM courses WHERE id = ?");
     $stmt->execute([$id]);
-    redirectWithAlert("courses.php", "Course deleted successfully!", "danger");
+    redirectWithAlert("courses.php", "Course deleted successfully!", "success");
 } catch (PDOException $e) {
     die("Error: Cannot delete course. It may be linked to active classes. Delete the classes first.");
 }

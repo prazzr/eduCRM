@@ -15,18 +15,18 @@ $taskId = requireIdParam();
 $task = $taskService->getTask($taskId);
 
 if (!$task) {
-    redirectWithAlert("list.php", "Task not found", "danger");
+    redirectWithAlert("list.php", "Task not found.", "error");
 }
 
 // Check permission (admin or assigned user can delete)
 if (!hasRole('admin') && $task['assigned_to'] != $_SESSION['user_id']) {
-    redirectWithAlert("list.php", "You don't have permission to delete this task", "danger");
+    redirectWithAlert("list.php", "Access denied. You cannot delete this task.", "error");
 }
 
 // Delete the task
 if ($taskService->deleteTask($taskId)) {
     logAction('task_delete', "Deleted task ID: {$taskId}");
-    redirectWithAlert("list.php", "Task deleted successfully!", "danger");
+    redirectWithAlert("list.php", "Task deleted successfully!", "success");
 } else {
-    redirectWithAlert("list.php", "Failed to delete task", "danger");
+    redirectWithAlert("list.php", "Unable to delete task. Please try again.", "error");
 }

@@ -202,7 +202,7 @@ class ReportingService
                 ? round(($counselor['converted_inquiries'] / $counselor['total_inquiries']) * 100, 1)
                 : 0;
 
-            $counselor['avg_lead_score'] = round((float)($counselor['avg_lead_score'] ?? 0), 1);
+            $counselor['avg_lead_score'] = round((float) ($counselor['avg_lead_score'] ?? 0), 1);
         }
 
         return $counselors;
@@ -278,5 +278,26 @@ class ReportingService
         });
 
         return array_slice($counselors, 0, $limit);
+    }
+    /**
+     * Get student enrollment statistics
+     */
+    public function getStudentEnrollmentStats($startDate, $endDate)
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT 
+                COUNT(*) as total_students
+            FROM users u
+            JOIN user_roles ur ON u.id = ur.user_id
+            JOIN roles r ON ur.role_id = r.id
+            WHERE r.name = 'student'
+            AND u.created_at BETWEEN ? AND ?
+        ");
+        $stmt->execute([$startDate, $endDate]);
+        $stats = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        return [
+            'new_students' => (int) $stats['total_students']
+        ];
     }
 }

@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 redirectWithAlert("list.php", "Inquiry added and scored successfully!", 'success');
             } catch (PDOException $e) {
-                redirectWithAlert("add.php", "Error adding inquiry: " . $e->getMessage(), 'error');
+                redirectWithAlert("add.php", "Unable to create inquiry. Please check your inputs.", 'error');
             }
         } else {
             redirectWithAlert("add.php", "Name is required.", 'error');

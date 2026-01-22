@@ -34,6 +34,7 @@ $leadFunnel = $reportingService->getLeadConversionFunnel($startDate, $endDate);
 $priorityDist = $reportingService->getPriorityDistribution($startDate, $endDate);
 $counselorPerf = $reportingService->getCounselorPerformance($startDate, $endDate);
 $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $endDate);
+$studentStats = $reportingService->getStudentEnrollmentStats($startDate, $endDate);
 ?>
 
 <div class="mb-6">
@@ -147,6 +148,22 @@ $avgCompletionTime = $reportingService->getAverageCompletionTime($startDate, $en
             <?php echo $avgCompletionTime; ?>
         </div>
         <div class="text-orange-100 text-sm">days to complete</div>
+    </div>
+
+    <!-- New Students -->
+    <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white shadow-lg">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-indigo-100 text-sm font-medium">New Students</span>
+            <svg class="w-8 h-8 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                </path>
+            </svg>
+        </div>
+        <div class="text-4xl font-bold mb-1">
+            <?php echo $studentStats['new_students']; ?>
+        </div>
+        <div class="text-indigo-100 text-sm">enrolled in period</div>
     </div>
 </div>
 

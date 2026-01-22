@@ -17,18 +17,18 @@ if ($id == $_SESSION['user_id']) {
 
 try {
     $pdo->beginTransaction();
-    
+
     // Log the deletion before removing
     logAction('user_delete', "Deleted user ID: {$id}");
-    
+
     // Delete roles first (foreign key constraint)
     $pdo->prepare("DELETE FROM user_roles WHERE user_id = ?")->execute([$id]);
-    
+
     // Delete user
     $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
-    
+
     $pdo->commit();
-    redirectWithAlert("list.php", "User deleted successfully!", "danger");
+    redirectWithAlert("list.php", "User deleted successfully!", "success");
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

@@ -1,5 +1,6 @@
 <?php
 require_once '../../app/bootstrap.php';
+ob_start();
 
 
 requireLogin();

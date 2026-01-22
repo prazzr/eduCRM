@@ -51,9 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Log the action
         logAction('student_update', "Updated student ID: {$id}");
 
-        redirectWithAlert("list.php", "Student details updated!", 'warning');
+        redirectWithAlert("list.php", "Student profile updated successfully.", 'success');
     } catch (PDOException $e) {
-        redirectWithAlert("edit.php?id=$id", "Update Failed: " . $e->getMessage(), 'error');
+        redirectWithAlert("edit.php?id=$id", "Unable to update profile. Please try again.", 'error');
     }
 }
 

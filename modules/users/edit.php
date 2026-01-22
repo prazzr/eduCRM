@@ -43,9 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $pdo->commit();
-        redirectWithAlert("list.php", "User updated successfully!", 'warning');
+        redirectWithAlert("list.php", "User profile updated successfully.", 'success');
     } else {
-        redirectWithAlert("edit.php?id=$id", "Name and Email are required.", 'error');
+        redirectWithAlert("edit.php?id=$id", "Please provide both Name and Email.", 'error');
     }
 }
 

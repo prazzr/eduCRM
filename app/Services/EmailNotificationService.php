@@ -893,4 +893,39 @@ class EmailNotificationService
             $stmt->execute([$status, $errorMessage, $emailId]);
         }
     }
+
+    /**
+     * Generic Event Sender
+     * Called by UnifiedNotificationService
+     */
+    public function sendEvent($eventKey, $toEmail, $toName, $data)
+    {
+        // 1. Check if a specific method exists (legacy support/backward compat)
+        // Convert 'task_assigned' -> 'sendTaskAssignedNotification' if strict mapping needed
+
+        // 2. Generic Render
+        // This relies on the template existing in the DB or hardcoded array with the same key
+        $subject = "Notification: " . ucwords(str_replace('_', ' ', $eventKey)); // Default subject
+
+        // Use generic render. Note: renderTemplate might not handle all keys if not in DB.
+        // But for unified system, we assume DB template or we fall back to generic body.
+
+        try {
+            $result = $this->renderTemplate($eventKey, $data);
+
+            $body = is_array($result) ? $result['body'] : $result;
+            $subject = (is_array($result) && !empty($result['subject'])) ? $result['subject'] : $subject;
+
+            // If body is empty, it means no template was found. 
+            // We should provide a fallback.
+            if (empty($body)) {
+                $body = "You have a new notification: " . str_replace('_', ' ', $eventKey);
+            }
+
+            return $this->queueEmail($toEmail, $toName, $subject, $body, $eventKey);
+        } catch (\Exception $e) {
+            error_log("Email sendEvent failed: " . $e->getMessage());
+            return false;
+        }
+    }
 }

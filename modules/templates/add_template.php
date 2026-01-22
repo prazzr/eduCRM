@@ -20,7 +20,7 @@ if ($isEdit) {
     $template = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$template) {
-        redirectWithAlert('templates.php', 'Template not found.', 'error');
+        redirectWithAlert('index.php', 'Template not found.', 'error');
     }
 }
 
@@ -39,7 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'Template key, name, and subject are required.', 'error');
     }
     
+    // Phase 6: Dynamic Channels Processing
+    // We don't save to email_templates directly anymore.
+    // We save to email_template_channels after the main template is saved.
+    
     try {
+        $pdo->beginTransaction();
+
         if ($isEdit) {
             $stmt = $pdo->prepare("
                 UPDATE email_templates 
@@ -54,11 +60,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([$template_key, $name, $description, $subject, $body_html, $variables, $is_active]);
+            $templateId = $pdo->lastInsertId(); // Get ID for new template
             $message = 'Template created successfully!';
         }
+
+        // Save Channel Configs
+        // First delete existing configs for this template to ensure clean state (or use ON DUPLICATE KEY UPDATE)
+        $pdo->prepare("DELETE FROM email_template_channels WHERE template_id = ?")->execute([$templateId]);
+
+        // active_gateways is an array of IDs from the form now
+        $active_gateways = $_POST['active_gateways'] ?? [];
+
+        // Fetch channel type for each gateway to save correctly
+        $gatewayTypes = [];
+        if (!empty($active_gateways)) {
+            $stmt = $pdo->query("SELECT id, type FROM messaging_gateways");
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $gatewayTypes[$row['id']] = $row['type'];
+            }
+        }
+
+        $insertChannel = $pdo->prepare("
+            INSERT INTO email_template_channels (template_id, channel_type, gateway_id, is_active, custom_content)
+            VALUES (?, ?, ?, 1, NULL)
+        ");
+
+        foreach ($active_gateways as $gatewayId) {
+            if (isset($gatewayTypes[$gatewayId])) {
+                $type = $gatewayTypes[$gatewayId];
+                $insertChannel->execute([$templateId, $type, $gatewayId]);
+            }
+        }
+
+        $pdo->commit();
         
-        redirectWithAlert('templates.php', $message, 'success');
+        redirectWithAlert('index.php', $message, 'success');
     } catch (PDOException $e) {
+        $pdo->rollBack();
         $error = $e->getCode() == 23000 ? 'Template key already exists.' : $e->getMessage();
         redirectWithAlert(($isEdit ? "add_template.php?id={$templateId}" : "add_template.php"), 
             'Error: ' . $error, 'error');
@@ -83,6 +121,31 @@ sort($allVariables);
 
 // Current template's variables (for saving)
 $currentVariables = $allVariables;
+
+// Phase 6: Get Active Gateway Types for Dynamic UI
+$activeGateways = [];
+try {
+    $stmt = $pdo->query("SELECT type, name FROM messaging_gateways WHERE is_active = 1 ORDER BY type ASC, name ASC");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $activeGateways[$row['type']][] = $row['name'];
+    }
+} catch (PDOException $e) {
+    // Table might not exist yet if migration failed
+    $activeGateways = [];
+}
+
+// Load existing channel configs if editing
+$templateChannels = [];
+if ($isEdit) {
+    $stmt = $pdo->prepare("SELECT * FROM email_template_channels WHERE template_id = ?");
+    $stmt->execute([$templateId]);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        // We now store multiple entries per type, so we can't key just by type if we want to check gateways
+        // But for backward compatibility logic in other places, we might still key by type.
+        // For the UI loop, we just need the list.
+        $templateChannels[] = $row;
+    }
+}
 ?>
 
 <!-- GrapesJS CSS -->
@@ -192,7 +255,7 @@ $currentVariables = $allVariables;
     <div class="page-header">
         <div>
             <div class="flex items-center gap-2 mb-1">
-                <a href="templates.php" class="text-slate-400 hover:text-slate-600">
+                <a href="index.php" class="text-slate-400 hover:text-slate-600">
                     <?php echo \EduCRM\Services\NavigationService::getIcon('arrow-left', 18); ?>
                 </a>
                 <h1 class="page-title"><?php echo $isEdit ? 'Edit' : 'Create'; ?> Email Template</h1>
@@ -263,6 +326,67 @@ $currentVariables = $allVariables;
                     <span class="ml-3 text-sm text-slate-700">Template is active</span>
                 </label>
             </div>
+        </div>
+    </div>
+
+    <!-- Unified Messaging Distribution (Phase 6 Dynamic) -->
+    <div class="card mb-6 border-l-4 border-l-indigo-500">
+        <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-slate-800">Multi-Channel Distribution</h2>
+            <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full uppercase font-bold tracking-wider">Dynamic</span>
+        </div>
+        <div class="p-6">
+            <p class="text-sm text-slate-500 mb-4">Select which channels to automatically send this notification to. Content will be generated from the email body.</p>
+            <?php if (empty($activeGateways)): ?>
+                <div class="text-center py-6 text-slate-500">
+                    <p>No active gateways found. Configure gateways in Messaging > Gateways.</p>
+                </div>
+            <?php else: ?>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <?php 
+                    // Flatten active gateways for linear iteration
+                    $allGateways = [];
+                    $stmt = $pdo->query("SELECT * FROM messaging_gateways WHERE is_active = 1 ORDER BY type ASC, name ASC");
+                    $allGateways = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($allGateways as $gateway): 
+                        // Check if this specific gateway is enabled for this template
+                        // We check active_gateways ids if submitted, or templateChannels if existing
+                        $isActive = false;
+                        if ($isEdit) {
+                            // Check if template has a channel entry with this gateway_id
+                            foreach ($templateChannels as $ch) {
+                                if ($ch['gateway_id'] == $gateway['id'] && $ch['is_active']) {
+                                    $isActive = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        $type = $gateway['type'];
+                        $displayType = $type ?: 'Push';
+                        $color = match($type) {
+                            'whatsapp' => 'green',
+                            'sms' => 'indigo',
+                            'viber' => 'purple',
+                            'push', '' => 'blue',
+                            default => 'slate'
+                        };
+                    ?>
+                        <label class="flex items-start space-x-3 p-3 border rounded-lg hover:bg-slate-50 transition-colors cursor-pointer bg-white shadow-sm">
+                            <input type="checkbox" name="active_gateways[]" value="<?php echo $gateway['id']; ?>" 
+                                    <?php echo $isActive ? 'checked' : ''; ?>
+                                    class="h-5 w-5 mt-1 text-<?php echo $color; ?>-600 focus:ring-<?php echo $color; ?>-500 border-slate-300 rounded">
+                            <div class="flex flex-col">
+                                <span class="font-medium text-slate-800"><?php echo htmlspecialchars($gateway['name']); ?></span>
+                                <span class="text-xs font-semibold text-<?php echo $color; ?>-600 uppercase tracking-wide mt-0.5">
+                                    <?php echo htmlspecialchars($displayType); ?> &bull; <?php echo htmlspecialchars($gateway['provider']); ?>
+                                </span>
+                            </div>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 

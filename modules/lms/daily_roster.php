@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_performance']) &
     } catch (Exception $e) {
         if ($pdo->inTransaction())
             $pdo->rollBack();
-        redirectWithAlert("daily_roster.php?class_id=$class_id&roster_id=$roster_id", "Error saving: " . $e->getMessage(), 'error');
+        redirectWithAlert("daily_roster.php?class_id=$class_id&roster_id=$roster_id", "Unable to save performance data. Please try again.", 'error');
     }
 }
 

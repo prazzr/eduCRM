@@ -11,5 +11,5 @@ if (!$id)
     die("Invalid ID");
 
 $pdo->prepare("DELETE FROM university_applications WHERE id = ?")->execute([$id]);
-redirectWithAlert("tracker.php", "Application deleted successfully!", "danger");
+redirectWithAlert("tracker.php", "Application deleted successfully!", "success");
 exit;

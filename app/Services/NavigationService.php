@@ -49,11 +49,16 @@ class NavigationService
             $items[] = ['label' => 'Activity', 'url' => $base . 'modules/reports/activity.php', 'icon' => 'activity', 'section' => 'reports'];
         }
 
+        // Templates (Moved from Tools) - Now explicitly under Tools
+        if (in_array($role, ['admin', 'counselor', 'branch_manager'])) {
+            $items[] = ['label' => 'Templates', 'url' => $base . 'modules/templates/index.php', 'icon' => 'layout', 'section' => 'tools'];
+        }
+
         // Tools
         if (in_array($role, ['admin', 'counselor', 'branch_manager'])) {
             $items[] = ['label' => 'Documents', 'url' => $base . 'modules/documents/manage.php', 'icon' => 'folder', 'section' => 'tools'];
             $items[] = ['label' => 'Messaging', 'url' => $base . 'modules/messaging/gateways.php', 'icon' => 'message-circle', 'section' => 'tools'];
-            $items[] = ['label' => 'Email', 'url' => $base . 'modules/email/queue.php', 'icon' => 'mail', 'section' => 'tools'];
+            $items[] = ['label' => 'Email Queue', 'url' => $base . 'modules/email/queue.php', 'icon' => 'mail', 'section' => 'tools'];
         }
 
         // Automate (Admin only)

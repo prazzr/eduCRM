@@ -57,7 +57,7 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_pa
         $limit = $fee_total - $total_paid_already;
 
         if ($amount > $limit) {
-            redirectWithAlert("student_ledger.php?student_id=$student_id", "Error: Payment amount ($$amount) exceeds the remaining balance ($$limit).", "danger");
+            redirectWithAlert("student_ledger.php?student_id=$student_id", "Payment exceeds remaining balance. Please check the amount.", "error");
         } else {
             $pdo->beginTransaction();
 
@@ -86,7 +86,7 @@ if ($isAdmin && isset($_GET['delete_fee'])) {
     $stmt = $pdo->prepare("DELETE FROM student_fees WHERE id = ? AND status = 'unpaid'");
     $stmt->execute([$fid]);
     $stmt->execute([$fid]);
-    redirectWithAlert("student_ledger.php?student_id=" . $student_id, "Fee deleted successfully.", "danger");
+    redirectWithAlert("student_ledger.php?student_id=" . $student_id, "Fee deleted successfully.", "success");
 }
 
 // Fetch Ledger Data

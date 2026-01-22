@@ -41,59 +41,72 @@ class UnifiedNotificationService
 
         $results = [];
 
-        // 2. Dispatch Email
-        if (!empty($preferences['email']) && $preferences['email']['is_enabled']) {
-            $emailParams = $data;
-            // Inject user specific vars if not present
-            if (!isset($emailParams['name']))
-                $emailParams['name'] = $user['name'];
-            if (!isset($emailParams['email']))
-                $emailParams['email'] = $user['email'];
+        // 2. Load Centralized Template
+        $stmt = $this->pdo->prepare("SELECT * FROM centralized_templates WHERE event_key = ?");
+        $stmt->execute([$eventKey]);
+        $template = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            // We need a way to call EmailService generically for an event
-            // Proposal: EmailService->sendNotification($eventKey, $to, $data)
-            // For now, let's map common events to their specific methods for backward compatibility
-            // OR better, we use the unified render+queue method if available
-
-            // Try to send via generic method if email service supports it, or individual methods
-            // For Phase 5, we rely on individual methods or renderTemplate public access?
-            // Actually, best approach: expose a generic `sendEventNotification` in EmailService
-
-            // TEMPORARY: Map known events to methods (to start)
-            $methodMap = [
-                'task_assigned' => 'sendTaskAssignmentNotification',
-                'appointment_reminder' => 'sendAppointmentReminder',
-                'task_overdue' => 'sendOverdueTaskAlert',
-                // others...
-            ];
-
-            if (isset($methodMap[$eventKey]) && method_exists($this->emailService, $methodMap[$eventKey])) {
-                // Some methods take IDs, others take data. This is messy.
-                // ideally we refactor EmailService to be generic. 
-                // Let's assume for this specific execution we want to enable the GENERIC path.
-                // We will add `sendEvent($eventKey, $toEmail, $toName, $data)` to EmailService.
-                $results['email'] = $this->emailService->sendEvent(
-                    $eventKey,
-                    $user['email'],
-                    $user['name'],
-                    $data
-                );
-            } else {
-                // Fallback to generic sending using keys
-                $results['email'] = $this->emailService->sendEvent(
-                    $eventKey,
-                    $user['email'],
-                    $user['name'],
-                    $data
-                );
-            }
+        if (!$template) {
+            // Fallback for Phase 5 backward compatibility or logging
+            // error_log("UnifiedNotification: No centralized template for $eventKey");
+            // We can return here or try legacy paths. 
+            // For Phase 6, we assume migration populated this.
         }
 
-        // 3. Dispatch Messaging (SMS/WhatsApp)
+        // 3. Dispatch Email
+        if (
+            !empty($preferences['email']) && $preferences['email']['is_enabled'] &&
+            $template && $template['is_email_enabled']
+        ) {
+
+            $subject = $this->renderString($template['email_subject'], $data);
+            $body = $this->renderString($template['email_body'], $data);
+
+            // Inject User Vars
+            $subject = str_replace('{name}', $user['name'], $subject);
+            $body = str_replace('{name}', $user['name'], $body);
+
+            // Use EmailService just for queuing
+            $results['email'] = $this->emailService->queueEmail(
+                $user['email'],
+                $user['name'],
+                $subject,
+                $body,
+                $eventKey
+            );
+        }
+
+        // 4. Dispatch Messaging (Dynamic Channels)
+        // 4. Dispatch Messaging (Dynamic Channels)
         // Check for enabled messaging channels
-        foreach (['sms', 'whatsapp'] as $channel) {
-            if (!empty($preferences[$channel]) && $preferences[$channel]['is_enabled']) {
-                $results[$channel] = $this->dispatchMessage($channel, $eventKey, $user, $data);
+
+        // Phase 6: Specific Gateway Logic
+        // We get ALL channels configured for this event's template
+        // This query finds:
+        // 1. The template for this event key
+        // 2. All active channels/gateways linked to it
+        // 3. The gateway details (id, provider, type)
+        $stmt = $this->pdo->prepare("
+            SELECT c.channel_type, c.gateway_id, g.provider, t.subject, t.body_html, c.custom_content 
+            FROM email_templates t
+            JOIN email_template_channels c ON t.id = c.template_id
+            LEFT JOIN messaging_gateways g ON c.gateway_id = g.id
+            WHERE t.template_key = ? AND t.is_active = 1 AND c.is_active = 1
+        ");
+        $stmt->execute([$eventKey]);
+        $activeConfig = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($activeConfig as $config) {
+            $channelType = $config['channel_type'];
+
+            // Check User Preference for this channel type
+            // Note: Users opt-in/out of "SMS", not "Twilio" specifically.
+            $isEnabledPref = !empty($preferences[$channelType]) && $preferences[$channelType]['is_enabled'];
+
+            if ($isEnabledPref) {
+                // Pass the specific config to dispatchMessage
+                // Using gateway_id to force correct gateway usage
+                $results[$channelType . ':' . $config['gateway_id']] = $this->dispatchMessage($config, $user, $data);
             }
         }
 
@@ -101,53 +114,63 @@ class UnifiedNotificationService
     }
 
     /**
-     * Dispatch SMS/WhatsApp Message
+     * Dispatch Message Dynamically
      */
-    private function dispatchMessage($channel, $eventKey, $user, $data)
+    /**
+     * Dispatch Message Dynamically
+     * Now accepts $config array with gateway info
+     */
+    private function dispatchMessage($config, $user, $data)
     {
-        // 1. Find Template for this Event + Channel
-        $stmt = $this->pdo->prepare("
-            SELECT content, variables 
-            FROM messaging_templates 
-            WHERE event_key = ? AND message_type = ? AND is_active = 1 
-            LIMIT 1
-        ");
-        $stmt->execute([$eventKey, $channel]);
-        $template = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $channel = $config['channel_type'];
+        $gatewayId = $config['gateway_id'];
 
-        if (!$template) {
-            return false; // No template configured
+        // Check for valid phone number
+        if (empty($user['phone'])) {
+            return false;
         }
 
-        // 2. Prepare Message
-        $message = $template['content'];
-        foreach ($data as $key => $value) {
-            // Flatten arrays if any
-            if (is_array($value))
-                continue;
-            $message = str_replace('{' . $key . '}', $value, $message);
-        }
-        // Also replace user standard vars
+        // 2. Prepare Content
+        // Use custom content if exists, otherwise fallback to stripped email body
+        $rawContent = !empty($config['custom_content']) ? $config['custom_content'] : strip_tags($config['body_html']);
+        if (empty($rawContent))
+            return false;
+
+        // 3. Render Variables
+        $message = $this->renderString($rawContent, $data);
         $message = str_replace('{name}', $user['name'], $message);
+        $message = str_replace('{site_name}', 'EduCRM', $message);
 
-        // 3. Send via Factory
-        // Need to require factory if not autloaded
+        // 4. Send via Factory
         if (!class_exists('EduCRM\Services\MessagingFactory')) {
             require_once __DIR__ . '/MessagingFactory.php';
         }
 
+        \EduCRM\Services\MessagingFactory::init($this->pdo);
+
         try {
-            $gateway = \EduCRM\Services\MessagingFactory::create(null, $channel);
+            // Force specific gateway creation
+            $gateway = \EduCRM\Services\MessagingFactory::create($gatewayId, $channel);
             // Queue it to avoid blocking
             $gateway->queue($user['phone'], $message, [
-                'template_id' => $eventKey, // We track by event key roughly
-                'metadata' => ['event' => $eventKey, 'user_id' => $user['id']]
+                'template_id' => $eventKey,
+                'metadata' => ['event' => $eventKey, 'user_id' => $user['id'], 'channel' => $channel]
             ]);
             return true;
         } catch (\Exception $e) {
             error_log("UnifiedNotification Error ($channel): " . $e->getMessage());
             return false;
         }
+    }
+
+    private function renderString($string, $data)
+    {
+        foreach ($data as $key => $value) {
+            if (is_array($value))
+                continue;
+            $string = str_replace('{' . $key . '}', $value, $string);
+        }
+        return $string;
     }
 
     /**
@@ -184,7 +207,18 @@ class UnifiedNotificationService
 
         // Apply defaults if no preference set
         $defaults = json_decode($event['default_channels'], true) ?? [];
-        foreach (['email', 'sms', 'whatsapp'] as $ch) {
+
+        // Dynamic Channel Defaults
+        try {
+            $stmt = $this->pdo->query("SELECT DISTINCT type FROM messaging_gateways WHERE is_active = 1");
+            $dynamicChannels = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+        } catch (\PDOException $e) {
+            $dynamicChannels = [];
+        }
+
+        $allChannels = array_unique(array_merge(['email'], $dynamicChannels));
+
+        foreach ($allChannels as $ch) {
             if (!isset($prefs[$ch])) {
                 // If not set in DB, use default from event definition
                 $isEnabled = in_array($ch, $defaults);

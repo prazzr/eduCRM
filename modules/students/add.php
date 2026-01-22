@@ -57,12 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log("Failed to send welcome email: " . $e->getMessage());
         }
 
-        redirectWithAlert("list.php", "Student created! Temporary Password: <strong>$password</strong><br>✉️ Welcome email has been queued.", 'success');
+        redirectWithAlert("list.php", "Student added successfully! <br>Temporary Password: <strong>$password</strong>", 'success');
     } catch (PDOException $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        redirectWithAlert("add.php", "Error: " . $e->getMessage(), 'error');
+        redirectWithAlert("add.php", "Unable to add student. Please check the details and try again.", 'error');
     }
 }
 

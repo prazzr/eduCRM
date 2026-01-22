@@ -22,7 +22,7 @@ try {
     $stmt->execute([$id]);
 
     $pdo->commit();
-    redirectWithAlert("list.php", "Inquiry deleted successfully!", "danger");
+    redirectWithAlert("list.php", "Inquiry deleted successfully!", "success");
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

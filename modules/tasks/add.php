@@ -4,6 +4,7 @@
  * Creates new tasks with user assignment and priority
  */
 require_once '../../app/bootstrap.php';
+ob_start();
 
 
 

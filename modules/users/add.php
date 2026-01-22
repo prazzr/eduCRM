@@ -83,11 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     error_log("Failed to send welcome email: " . $e->getMessage());
                 }
 
-                redirectWithAlert("list.php", "User created successfully with roles: " . count($selected_role_ids) . ". <br>Generated Password: <strong>$password</strong> (Copy this now)<br>✉️ Welcome email has been queued.", 'success');
+                redirectWithAlert("list.php", "User account created successfully! <br><strong>Password:</strong> $password <br>(Please secure this password. A welcome email has also been sent.)", 'success');
             } catch (PDOException $e) {
                 if ($pdo->inTransaction())
                     $pdo->rollBack();
-                redirectWithAlert("add.php", "Database Error: " . $e->getMessage(), 'error');
+                redirectWithAlert("add.php", "Unable to create user. Please check the details and try again.", 'error');
             }
         }
     }

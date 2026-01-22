@@ -40,6 +40,8 @@ require_once '../../templates/header.php';
     <p class="text-slate-600 mt-1">Monitor and manage queued messages</p>
 </div>
 
+<?php require_once 'tabs.php'; ?>
+
 <!-- Statistics -->
 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">

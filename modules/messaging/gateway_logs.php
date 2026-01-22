@@ -153,6 +153,8 @@ require_once '../../templates/header.php';
     </div>
 </div>
 
+<?php require_once 'tabs.php'; ?>
+
 <div class="grid grid-cols-12 gap-6">
     <!-- Date Navigation Sidebar -->
     <div class="col-span-3">

@@ -17,7 +17,7 @@ try {
     // Delete class
     $pdo->prepare("DELETE FROM classes WHERE id = ?")->execute([$id]);
     $pdo->commit();
-    redirectWithAlert("classes.php", "Class deleted successfully!", "danger");
+    redirectWithAlert("classes.php", "Class deleted successfully!", "success");
 } catch (PDOException $e) {
     $pdo->rollBack();
     die("Error: Cannot delete class. It might be linked to other records.");

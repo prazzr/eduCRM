@@ -12,7 +12,7 @@ if (!$id)
 
 try {
     $pdo->prepare("DELETE FROM partners WHERE id = ?")->execute([$id]);
-    redirectWithAlert("list.php", "Partner deleted successfully!", "danger");
+    redirectWithAlert("list.php", "Partner deleted successfully!", "success");
 } catch (PDOException $e) {
     die("Error: Cannot delete partner. They might be linked to other records.");
 }

@@ -62,6 +62,8 @@ if (hasRole('admin')) {
     </div>
 </div>
 
+<?php renderFlashMessage(); ?>
+
 <!-- Quick Search with Alpine.js -->
 <div class="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-sm mb-4">
     <div x-data='searchFilter({

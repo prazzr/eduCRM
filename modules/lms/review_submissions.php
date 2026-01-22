@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_grades'])) {
             redirectWithAlert("review_submissions.php?material_id=$material_id", "Grades saved and synced to Daily Journal!", 'success');
         } catch (Exception $e) {
             $pdo->rollBack();
-            redirectWithAlert("review_submissions.php?material_id=$material_id", "Error: " . $e->getMessage(), 'error');
+            redirectWithAlert("review_submissions.php?material_id=$material_id", "Unable to save grades. Please try again.", 'error');
         }
     }
 }

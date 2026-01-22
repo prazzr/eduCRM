@@ -1,7 +1,7 @@
 <?php
 /**
- * Email Templates Management
- * View and manage email notification templates
+ * Unified Templates Management
+ * View and manage unified notification templates
  */
 
 require_once '../../app/bootstrap.php';
@@ -9,7 +9,7 @@ require_once '../../app/bootstrap.php';
 requireLogin();
 requireAdmin();
 
-$pageDetails = ['title' => 'Email Templates'];
+$pageDetails = ['title' => 'Notification Templates'];
 
 // Load templates from database
 $templates = [];
@@ -26,14 +26,14 @@ require_once '../../templates/header.php';
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">Email Templates</h1>
-        <p class="text-slate-500 mt-1 text-sm">Customize email notification templates</p>
+        <h1 class="page-title">Notification Templates</h1>
+        <p class="text-slate-500 mt-1 text-sm">Customize templates for all channels (Email, SMS, WhatsApp)</p>
     </div>
     <div class="flex gap-3">
         <a href="add_template.php" class="btn btn-primary">
             <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Create Template
         </a>
-        <a href="queue.php" class="btn btn-secondary">
+        <a href="../email/queue.php" class="btn btn-secondary">
             <?php echo \EduCRM\Services\NavigationService::getIcon('arrow-left', 16); ?> Back to Queue
         </a>
     </div>

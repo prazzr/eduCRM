@@ -28,12 +28,12 @@ $taskId = requireIdParam();
 $task = $taskService->getTask($taskId);
 
 if (!$task) {
-    redirectWithAlert("list.php", "Task not found", "danger");
+    redirectWithAlert("list.php", "Task not found.", "error");
 }
 
 // Check permission (admin or assigned user can edit)
 if (!hasRole('admin') && $task['assigned_to'] != $_SESSION['user_id']) {
-    redirectWithAlert("list.php", "You don't have permission to edit this task", "danger");
+    redirectWithAlert("list.php", "Access denied. You cannot edit this task.", "error");
 }
 
 $pageDetails = ['title' => 'Edit Task'];
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $due_date = $_POST['due_date'] ?? null;
 
     if (empty($title)) {
-        redirectWithAlert("edit.php?id=$taskId", 'Task title is required.', 'error');
+        redirectWithAlert("edit.php?id=$taskId", 'Please provide a task title.', 'error');
     } elseif (empty($assigned_to)) {
         redirectWithAlert("edit.php?id=$taskId", 'Please assign the task to a user.', 'error');
     } else {

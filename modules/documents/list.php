@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['doc'])) {
 if (isset($_GET['delete']) && !hasRole('student')) {
     $doc_id = (int) $_GET['delete'];
     $stmt = $pdo->prepare("DELETE FROM student_documents WHERE id = ?");
-    redirectWithAlert("list.php?student_id=" . $student_id, "Document deleted successfully.", "danger");
+    redirectWithAlert("list.php?student_id=" . $student_id, "Document deleted successfully.", "success");
 }
 
 // Fetch Documents

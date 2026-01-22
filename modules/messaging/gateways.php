@@ -83,6 +83,8 @@ require_once '../../templates/header.php';
     </button>
 </div>
 
+<?php require_once 'tabs.php'; ?>
+
 <?php renderFlashMessage(); ?>
 
 <!-- Gateways List -->

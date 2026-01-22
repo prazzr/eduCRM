@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enroll_student']) && 
                 error_log("Failed to send enrollment email: " . $e->getMessage());
             }
 
-            redirectWithAlert("classroom.php?class_id=$class_id", "Student enrolled. ✉️ Notification email queued.", 'success');
+            redirectWithAlert("classroom.php?class_id=$class_id", "Student enrolled successfully! Notification sent.", 'success');
         } else {
             redirectWithAlert("classroom.php?class_id=$class_id", "Student already enrolled.", 'warning');
         }

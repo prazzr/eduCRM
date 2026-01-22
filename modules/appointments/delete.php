@@ -23,13 +23,13 @@ if (!$appointment) {
 
 // Check permission
 if (!hasRole('admin') && $appointment['counselor_id'] != $_SESSION['user_id']) {
-    redirectWithAlert("list.php", "Unauthorized access.", "danger");
+    redirectWithAlert("list.php", "Access denied.", "error");
 }
 
 // Delete the appointment
 if ($appointmentService->deleteAppointment($appointmentId)) {
-    redirectWithAlert("list.php", "Appointment deleted successfully!", "danger");
+    redirectWithAlert("list.php", "Appointment deleted successfully!", "success");
 } else {
-    redirectWithAlert("list.php", "Failed to delete appointment.", "danger");
+    redirectWithAlert("list.php", "Unable to delete appointment. Please try again.", "error");
 }
 exit;

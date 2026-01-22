@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
             redirectWithAlert('campaigns.php', 'Campaign created successfully', 'success');
         } catch (Exception $e) {
-            redirectWithAlert('campaigns.php', 'Error creating campaign: ' . $e->getMessage(), 'error');
+            redirectWithAlert('campaigns.php', 'Unable to create campaign. Please check inputs and try again.', 'error');
         }
 
     }
@@ -92,6 +92,8 @@ require_once '../../templates/header.php';
         <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> New Campaign
     </button>
 </div>
+
+<?php require_once 'tabs.php'; ?>
 
 <?php renderFlashMessage(); ?>
 

@@ -13,9 +13,9 @@ $id = requireIdParam();
 try {
     // Log the deletion
     logAction('fee_type_delete', "Deleted fee type ID: {$id}");
-    
+
     $pdo->prepare("DELETE FROM fee_types WHERE id = ?")->execute([$id]);
-    redirectWithAlert("fee_types.php", "Fee type deleted successfully!", "danger");
+    redirectWithAlert("fee_types.php", "Fee type deleted successfully!", "success");
 } catch (PDOException $e) {
     die("Error: Cannot delete fee type. It may be linked to student records.");
 }

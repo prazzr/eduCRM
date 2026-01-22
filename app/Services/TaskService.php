@@ -76,6 +76,8 @@ class TaskService
     }
 
     /**
+     * Get task details
+     */
     public function getTask($taskId)
     {
         $stmt = $this->pdo->prepare("
