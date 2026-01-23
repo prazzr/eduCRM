@@ -19,6 +19,8 @@ $leadScoringService = new \EduCRM\Services\LeadScoringService($pdo);
 // Get filter parameter
 $priorityFilter = $_GET['priority'] ?? null;
 $statusFilter = $_GET['status'] ?? null;
+$currentPage = max(1, (int) ($_GET['page'] ?? 1));
+$perPage = 20;
 
 // Build query with filters - Using FK columns with JOINs
 $sql = "SELECT i.*, 
@@ -27,7 +29,8 @@ $sql = "SELECT i.*,
         el.name as education_level_name,
         ist.name as status_name,
         pl.name as priority_name,
-        pl.color_code as priority_color
+        pl.color_code as priority_color,
+        DATEDIFF(CURDATE(), i.last_contacted) as days_since_contact
         FROM inquiries i 
         LEFT JOIN users u ON i.assigned_to = u.id 
         LEFT JOIN countries c ON i.country_id = c.id
@@ -36,6 +39,7 @@ $sql = "SELECT i.*,
         LEFT JOIN priority_levels pl ON i.priority_id = pl.id
         WHERE 1=1 $branchFilter";
 $params = [];
+
 
 if ($priorityFilter) {
     $sql .= " AND pl.name = ?";
@@ -49,9 +53,11 @@ if ($statusFilter) {
 
 $sql .= " ORDER BY i.score DESC, i.created_at DESC";
 
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$inquiries = $stmt->fetchAll();
+// Use PaginationService for server-side pagination
+$paginationService = new \EduCRM\Services\PaginationService($pdo, $perPage);
+$paginationService->setPage($currentPage);
+$inquiries = $paginationService->paginate($sql, $params);
+$pagination = $paginationService->getMetadata();
 
 // Get priority stats for filter chips
 $priorityStats = $leadScoringService->getPriorityStats();
@@ -71,11 +77,25 @@ $pageDetails = ['title' => 'Inquiry List'];
 require_once '../../templates/header.php';
 ?>
 
-<div class="page-header">
+<div class="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
     <h1 class="page-title">Inquiries</h1>
-    <a href="add.php" class="btn btn-primary">
-        <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Add New Inquiry
-    </a>
+    <div class="flex gap-3">
+        <!-- View Toggle -->
+        <div
+            class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-1 bg-slate-100 dark:bg-slate-800">
+            <span
+                class="px-3 py-1.5 text-sm rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-200 shadow-sm flex items-center gap-1">
+                <?php echo \EduCRM\Services\NavigationService::getIcon('list', 16); ?> List
+            </span>
+            <a href="kanban.php"
+                class="px-3 py-1.5 text-sm rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors flex items-center gap-1">
+                <?php echo \EduCRM\Services\NavigationService::getIcon('columns', 16); ?> Board
+            </a>
+        </div>
+        <a href="add.php" class="btn btn-primary">
+            <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Add New Inquiry
+        </a>
+    </div>
 </div>
 
 <!-- Quick Search with Alpine.js -->
@@ -383,6 +403,7 @@ require_once '../../templates/header.php';
                         <th class="p-3 font-semibold">Priority</th>
                         <th class="p-3 font-semibold">Score</th>
                         <th class="p-3 font-semibold">Assigned To</th>
+                        <th class="p-3 font-semibold">Last Contacted</th>
                         <th class="p-3 font-semibold">Status</th>
                         <th class="p-3 font-semibold text-right">Action</th>
                     </tr>
@@ -441,6 +462,38 @@ require_once '../../templates/header.php';
                                     <?php echo htmlspecialchars($inq['counselor_name'] ?? 'Unassigned'); ?>
                                 </td>
                                 <td class="p-3">
+                                    <?php
+                                    // Last Contacted with color-coded display
+                                    $daysSinceContact = $inq['days_since_contact'] ?? null;
+                                    $lastContactedDate = $inq['last_contacted'] ?? null;
+
+                                    if ($lastContactedDate) {
+                                        $contactClass = match (true) {
+                                            $daysSinceContact === null || $daysSinceContact < 0 => 'text-slate-400',
+                                            $daysSinceContact <= 3 => 'text-emerald-600 bg-emerald-50',
+                                            $daysSinceContact <= 7 => 'text-blue-600 bg-blue-50',
+                                            $daysSinceContact <= 14 => 'text-yellow-600 bg-yellow-50',
+                                            default => 'text-red-600 bg-red-50'
+                                        };
+
+                                        $relativeTime = match (true) {
+                                            $daysSinceContact === 0 => 'Today',
+                                            $daysSinceContact === 1 => 'Yesterday',
+                                            $daysSinceContact <= 7 => $daysSinceContact . 'd ago',
+                                            $daysSinceContact <= 30 => floor($daysSinceContact / 7) . 'w ago',
+                                            default => floor($daysSinceContact / 30) . 'mo ago'
+                                        };
+                                        ?>
+                                        <span
+                                            class="inline-block px-2 py-0.5 rounded text-xs font-medium <?php echo $contactClass; ?>"
+                                            title="<?php echo date('M d, Y', strtotime($lastContactedDate)); ?>">
+                                            <?php echo $relativeTime; ?>
+                                        </span>
+                                    <?php } else { ?>
+                                        <span class="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded">Never</span>
+                                    <?php } ?>
+                                </td>
+                                <td class="p-3">
                                     <?php $displayStatus = $inq['status_name'] ?? $inq['status'] ?? 'new'; ?>
                                     <span
                                         class="inline-block px-2 py-0.5 rounded text-xs font-bold uppercase <?php echo $statusColors[$displayStatus] ?? $statusColors['new']; ?>">
@@ -480,6 +533,9 @@ require_once '../../templates/header.php';
     </div>
 
 </div><!-- End of Alpine.js bulk container -->
+
+<?php // Pagination Controls ?>
+<?php include __DIR__ . '/../../templates/partials/pagination.php'; ?>
 
 <!-- Phase 2C: Bulk Email Composer Modal -->
 <div id="emailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

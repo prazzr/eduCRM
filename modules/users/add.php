@@ -14,6 +14,10 @@ if (!hasRole('admin') && !hasRole('counselor') && !hasRole('branch_manager')) {
 $branchService = new \EduCRM\Services\BranchService($pdo);
 $currentUserBranch = $branchService->getUserBranch($_SESSION['user_id']);
 
+// Get available notification channels
+$notifPrefService = new \EduCRM\Services\NotificationPreferenceService($pdo);
+$availableChannels = $notifPrefService->getAvailableChannels();
+
 // Fetch all roles for the form
 $all_roles = $pdo->query("SELECT * FROM roles ORDER BY name")->fetchAll();
 
@@ -73,6 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $pdo->commit();
+
+                // Save notification preferences
+                $selectedChannels = $_POST['notification_channels'] ?? ['email'];
+                $notifPrefService->saveUserPreferences($user_id, $selectedChannels);
 
                 // Send welcome email with credentials
                 try {
@@ -162,6 +170,29 @@ require_once '../../templates/header.php';
                             <small style="color: grey;">(Branch Managers can create staff for their branch)</small>
                     <?php endif; ?>
                 </div>
+
+                <!-- Notification Preferences -->
+                <div class="form-group">
+                    <label>Notification Preferences</label>
+                    <div style="background: #f8fafc; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                        <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b;">Select how this user receives notifications:</p>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
+                            <?php foreach ($availableChannels as $channel): ?>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; background: white; border: 1px solid #e2e8f0; border-radius: 6px;">
+                                    <input type="checkbox" name="notification_channels[]" value="<?php echo $channel['type']; ?>"
+                                        <?php echo $channel['default'] ? 'checked' : ''; ?>
+                                        style="width: 16px; height: 16px;">
+                                    <span style="font-size: 16px;"><?php echo $channel['icon']; ?></span>
+                                    <span style="font-size: 14px; font-weight: 500;"><?php echo htmlspecialchars($channel['label']); ?></span>
+                                    <?php if (!empty($channel['gateways']) && $channel['gateways'] !== 'System Email'): ?>
+                                        <span style="font-size: 11px; color: #94a3b8;">(<?php echo htmlspecialchars($channel['gateways']); ?>)</span>
+                                    <?php endif; ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+
                 <button type="submit" class="btn">Create User</button>
                 <a href="list.php" class="btn btn-secondary">Cancel</a>
             </form>

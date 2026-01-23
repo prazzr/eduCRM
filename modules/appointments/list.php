@@ -48,11 +48,60 @@ if (hasRole('admin')) {
 } else {
     $appointments = $appointmentService->getCounselorAppointments($_SESSION['user_id'], $filters);
 }
+
+// Initialize Google Calendar service for UI status
+$calendarService = new \EduCRM\Services\GoogleCalendarService($pdo);
+$isCalendarConnected = $calendarService->isConnected($_SESSION['user_id']);
+$isCalendarConfigured = $calendarService->isConfigured();
+
+// Get sync status for appointments (if calendar is connected)
+$syncStatuses = [];
+if ($isCalendarConnected && count($appointments) > 0) {
+    $appointmentIds = array_column($appointments, 'id');
+    $placeholders = implode(',', array_fill(0, count($appointmentIds), '?'));
+    $syncStmt = $pdo->prepare("
+        SELECT appointment_id, sync_status, last_synced_at 
+        FROM calendar_sync_events 
+        WHERE appointment_id IN ($placeholders) AND user_id = ?
+    ");
+    $syncStmt->execute([...$appointmentIds, $_SESSION['user_id']]);
+    while ($row = $syncStmt->fetch(PDO::FETCH_ASSOC)) {
+        $syncStatuses[$row['appointment_id']] = $row;
+    }
+}
 ?>
 
-<div class="page-header">
+<div class="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
     <h1 class="page-title">Appointments</h1>
-    <div class="flex gap-3">
+    <div class="flex items-center gap-3 flex-wrap">
+        <!-- Google Calendar Status -->
+        <?php if ($isCalendarConfigured): ?>
+            <?php if ($isCalendarConnected): ?>
+                <span class="flex items-center gap-1 text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-lg">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                    </svg>
+                    Calendar Synced
+                </span>
+                <a href="google-connect.php?action=disconnect" class="text-sm text-slate-500 hover:text-red-500">Disconnect</a>
+            <?php else: ?>
+                <a href="google-connect.php"
+                    class="flex items-center gap-2 text-sm bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24">
+                        <path fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                        <path fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                    </svg>
+                    Connect Google Calendar
+                </a>
+            <?php endif; ?>
+        <?php endif; ?>
+
         <a href="calendar.php" class="btn btn-secondary">
             <?php echo \EduCRM\Services\NavigationService::getIcon('calendar', 16); ?> Calendar View
         </a>
@@ -79,7 +128,7 @@ if (hasRole('admin')) {
         searchFields: ["title", "client"],
         minLength: 1,
         maxResults: 8
-    })' class="relative">
+        })' class="relative">
         <div class="flex items-center gap-3">
             <span class="text-slate-400">🔍</span>
             <input type="text" x-model="query" @input="search()" @focus="if(query.length >= 1) showResults = true"
@@ -259,7 +308,20 @@ if (hasRole('admin')) {
                                 </span>
                             </td>
                             <td class="p-3 text-right">
-                                <div class="flex gap-2 justify-end">
+                                <div class="flex gap-2 justify-end items-center">
+                                    <?php 
+                                    // Show sync status indicator if calendar is connected
+                                    if ($isCalendarConnected) {
+                                        $syncInfo = $syncStatuses[$apt['id']] ?? null;
+                                        if ($syncInfo && $syncInfo['sync_status'] === 'synced') {
+                                            echo '<span class="text-green-500" title="Synced to Google Calendar"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.6 5.84C16.24 4.47 14.28 3.5 12 3.5c-3.73 0-6.92 2.38-8.11 5.71L7 10.55c.67-2.08 2.46-3.55 4.67-3.55 1.52 0 2.88.64 3.87 1.66L12 12h8V4l-2.4 1.84z"/><path d="M17.6 5.84C16.24 4.47 14.28 3.5 12 3.5c-3.73 0-6.92 2.38-8.11 5.71L7 10.55c.67-2.08 2.46-3.55 4.67-3.55 1.52 0 2.88.64 3.87 1.66L12 12h8V4l-2.4 1.84M12 20.5c2.28 0 4.24-.97 5.6-2.34L20 20V12h-8l3.54 3.54c-.99 1.02-2.35 1.66-3.87 1.66-2.21 0-4-1.47-4.67-3.55L3.89 14.79c1.19 3.33 4.38 5.71 8.11 5.71"/></svg></span>';
+                                        } elseif ($syncInfo && $syncInfo['sync_status'] === 'failed') {
+                                            echo '<span class="text-red-500" title="Sync failed - click to retry"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></span>';
+                                        } else {
+                                            echo '<span class="text-slate-300" title="Not synced"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg></span>';
+                                        }
+                                    }
+                                    ?>
                                     <a href="edit.php?id=<?php echo $apt['id']; ?>" class="action-btn default" title="Edit">
                                         <?php echo \EduCRM\Services\NavigationService::getIcon('edit', 16); ?>
                                     </a>

@@ -18,6 +18,8 @@ $taskService = new \EduCRM\Services\TaskService($pdo);
 $statusFilter = $_GET['status'] ?? null;
 $priorityFilter = $_GET['priority'] ?? null;
 $entityFilter = $_GET['entity_type'] ?? null;
+$currentPage = max(1, (int)($_GET['page'] ?? 1));
+$perPage = 20;
 
 $filters = [];
 if ($statusFilter)
@@ -27,25 +29,40 @@ if ($priorityFilter)
 if ($entityFilter)
     $filters['entity_type'] = $entityFilter;
 
-// Get tasks based on role
+// Get tasks based on role (with pagination)
 if (hasRole('admin')) {
     $assignedToFilter = $_GET['assigned_to'] ?? null;
     if ($assignedToFilter)
         $filters['assigned_to'] = $assignedToFilter;
-    $tasks = $taskService->getAllTasks($filters);
+    $result = $taskService->getPaginatedTasks($filters, $currentPage, $perPage);
 
     // Get all users for filter dropdown (using helper)
     $users = users()->getAllUsers();
 } else {
-    $tasks = $taskService->getUserTasks($_SESSION['user_id'], $filters);
+    $result = $taskService->getPaginatedUserTasks($_SESSION['user_id'], $filters, $currentPage, $perPage);
 }
+
+// Extract tasks and pagination data
+$tasks = $result['data'];
+$pagination = $result['pagination'];
 ?>
 
-<div class="page-header">
+<div class="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
     <h1 class="page-title">My Tasks</h1>
-    <a href="add.php" class="btn btn-primary">
-        <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> New Task
-    </a>
+    <div class="flex gap-3">
+        <!-- View Toggle -->
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-1 bg-slate-100 dark:bg-slate-800">
+            <span class="px-3 py-1.5 text-sm rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-200 shadow-sm flex items-center gap-1">
+                <?php echo \EduCRM\Services\NavigationService::getIcon('list', 16); ?> List
+            </span>
+            <a href="kanban.php" class="px-3 py-1.5 text-sm rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors flex items-center gap-1">
+                <?php echo \EduCRM\Services\NavigationService::getIcon('columns', 16); ?> Board
+            </a>
+        </div>
+        <a href="add.php" class="btn btn-primary">
+            <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> New Task
+        </a>
+    </div>
 </div>
 
 <!-- Quick Search with Alpine.js -->
@@ -339,6 +356,9 @@ if (hasRole('admin')) {
         </table>
     </div>
 </div>
+
+<?php // Pagination Controls ?>
+<?php include __DIR__ . '/../../templates/partials/pagination.php'; ?>
 
 <!-- Bulk Action JavaScript with Modal System -->
 <script>

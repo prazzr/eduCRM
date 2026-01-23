@@ -151,9 +151,23 @@ require_once '../../templates/header.php';
 </style>
 
 <div class="card">
-    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <div class="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
         <h2 class="page-title" style="margin: 0;">Visa Tracking Workflow</h2>
-        <a href="document_types.php" class="btn btn-primary" style="font-size: 13px;">⚙️ Manage Document Types</a>
+        <div class="flex gap-3">
+            <!-- View Toggle -->
+            <div
+                class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-1 bg-slate-100 dark:bg-slate-800">
+                <span
+                    class="px-3 py-1.5 text-sm rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-200 shadow-sm flex items-center gap-1">
+                    <?php echo \EduCRM\Services\NavigationService::getIcon('list', 16); ?> List
+                </span>
+                <a href="kanban.php"
+                    class="px-3 py-1.5 text-sm rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors flex items-center gap-1">
+                    <?php echo \EduCRM\Services\NavigationService::getIcon('columns', 16); ?> Board
+                </a>
+            </div>
+            <a href="document_types.php" class="btn btn-primary" style="font-size: 13px;">⚙️ Manage Document Types</a>
+        </div>
     </div>
 
     <?php renderFlashMessage(); ?>

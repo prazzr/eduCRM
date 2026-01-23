@@ -20,12 +20,16 @@ require_once '../../templates/header.php';
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
     <h2>Student Financial Ledgers</h2>
-    <a href="fee_types.php" class="btn btn-primary">Manage Fee Structure</a>
+    <div style="display: flex; gap: 10px;">
+        <a href="dashboard.php" class="btn btn-secondary">📊 Financial Dashboard</a>
+        <a href="fee_types.php" class="btn btn-primary">Manage Fee Structure</a>
+    </div>
 </div>
 
 <div class="card" style="padding: 0;">
     <div style="padding: 15px; border-bottom: 1px solid #eee;">
-        <input type="text" id="studentSearch" class="form-control" placeholder="Search by Student Name..." style="max-width: 300px;">
+        <input type="text" id="studentSearch" class="form-control" placeholder="Search by Student Name..."
+            style="max-width: 300px;">
     </div>
     <table id="ledgerTable">
         <thead>
@@ -52,7 +56,7 @@ require_once '../../templates/header.php';
 </div>
 
 <script>
-    document.getElementById('studentSearch').addEventListener('keyup', function() {
+    document.getElementById('studentSearch').addEventListener('keyup', function () {
         let filter = this.value.toLowerCase();
         let rows = document.querySelectorAll('#ledgerTable tbody tr');
 

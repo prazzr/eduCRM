@@ -266,6 +266,134 @@ class TaskService
     }
 
     /**
+     * Get paginated tasks (for admin)
+     * 
+     * @param array $filters Optional filters (status, priority, assigned_to, entity_type)
+     * @param int $page Page number (1-indexed)
+     * @param int $perPage Items per page
+     * @return array ['data' => tasks[], 'pagination' => metadata]
+     */
+    public function getPaginatedTasks(array $filters = [], int $page = 1, int $perPage = 20): array
+    {
+        $paginationService = new PaginationService($this->pdo, $perPage);
+        $paginationService->setPage($page);
+
+        $sql = "
+            SELECT 
+                t.*,
+                u1.name as assigned_to_name,
+                u2.name as created_by_name
+            FROM tasks t
+            LEFT JOIN users u1 ON t.assigned_to = u1.id
+            LEFT JOIN users u2 ON t.created_by = u2.id
+            WHERE 1=1
+        ";
+
+        $params = [];
+
+        // Apply filters
+        if (!empty($filters['status'])) {
+            $sql .= " AND t.status = ?";
+            $params[] = $filters['status'];
+        }
+
+        if (!empty($filters['priority'])) {
+            $sql .= " AND t.priority = ?";
+            $params[] = $filters['priority'];
+        }
+
+        if (!empty($filters['assigned_to'])) {
+            $sql .= " AND t.assigned_to = ?";
+            $params[] = $filters['assigned_to'];
+        }
+
+        if (!empty($filters['entity_type'])) {
+            $sql .= " AND t.related_entity_type = ?";
+            $params[] = $filters['entity_type'];
+        }
+
+        $sql .= " ORDER BY 
+            CASE t.priority 
+                WHEN 'urgent' THEN 1
+                WHEN 'high' THEN 2
+                WHEN 'medium' THEN 3
+                WHEN 'low' THEN 4
+            END,
+            t.due_date ASC,
+            t.created_at DESC
+        ";
+
+        $tasks = $paginationService->paginate($sql, $params);
+
+        return [
+            'data' => $tasks,
+            'pagination' => $paginationService->getMetadata()
+        ];
+    }
+
+    /**
+     * Get paginated tasks for a specific user
+     * 
+     * @param int $userId User ID
+     * @param array $filters Optional filters (status, priority, entity_type)
+     * @param int $page Page number (1-indexed)
+     * @param int $perPage Items per page
+     * @return array ['data' => tasks[], 'pagination' => metadata]
+     */
+    public function getPaginatedUserTasks(int $userId, array $filters = [], int $page = 1, int $perPage = 20): array
+    {
+        $paginationService = new PaginationService($this->pdo, $perPage);
+        $paginationService->setPage($page);
+
+        $sql = "
+            SELECT 
+                t.*,
+                u1.name as assigned_to_name,
+                u2.name as created_by_name
+            FROM tasks t
+            LEFT JOIN users u1 ON t.assigned_to = u1.id
+            LEFT JOIN users u2 ON t.created_by = u2.id
+            WHERE t.assigned_to = ?
+        ";
+
+        $params = [$userId];
+
+        // Apply filters
+        if (!empty($filters['status'])) {
+            $sql .= " AND t.status = ?";
+            $params[] = $filters['status'];
+        }
+
+        if (!empty($filters['priority'])) {
+            $sql .= " AND t.priority = ?";
+            $params[] = $filters['priority'];
+        }
+
+        if (!empty($filters['entity_type'])) {
+            $sql .= " AND t.related_entity_type = ?";
+            $params[] = $filters['entity_type'];
+        }
+
+        $sql .= " ORDER BY 
+            CASE t.priority 
+                WHEN 'urgent' THEN 1
+                WHEN 'high' THEN 2
+                WHEN 'medium' THEN 3
+                WHEN 'low' THEN 4
+            END,
+            t.due_date ASC,
+            t.created_at DESC
+        ";
+
+        $tasks = $paginationService->paginate($sql, $params);
+
+        return [
+            'data' => $tasks,
+            'pagination' => $paginationService->getMetadata()
+        ];
+    }
+
+    /**
      * Update task
      */
     public function updateTask($taskId, $data)

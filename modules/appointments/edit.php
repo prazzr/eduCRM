@@ -58,7 +58,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         if ($appointmentService->updateAppointment($appointmentId, $updateData)) {
-            redirectWithAlert("edit.php?id=$appointmentId", 'Appointment updated successfully!', 'success');
+            // Sync to Google Calendar if connected
+            try {
+                $counselorId = $appointment['counselor_id'];
+                $calendarService = new \EduCRM\Services\GoogleCalendarService($pdo);
+                if ($calendarService->isConnected($counselorId)) {
+                    if ($status === 'cancelled') {
+                        // Delete from calendar if cancelled
+                        $calendarService->deleteEvent($appointmentId, $counselorId);
+                        redirectWithAlert("edit.php?id=$appointmentId", 'Appointment cancelled and removed from calendar!', 'success');
+                    } else {
+                        // Update in calendar
+                        $updateData['id'] = $appointmentId;
+                        $updateData['counselor_id'] = $counselorId;
+                        $syncResult = $calendarService->syncAppointment($updateData);
+                        if ($syncResult['success']) {
+                            redirectWithAlert("edit.php?id=$appointmentId", 'Appointment updated and synced to calendar!', 'success');
+                        } else {
+                            redirectWithAlert("edit.php?id=$appointmentId", 'Appointment updated! (Calendar sync failed)', 'success');
+                        }
+                    }
+                } else {
+                    redirectWithAlert("edit.php?id=$appointmentId", 'Appointment updated successfully!', 'success');
+                }
+            } catch (\Exception $e) {
+                redirectWithAlert("edit.php?id=$appointmentId", 'Appointment updated! (Calendar sync error)', 'success');
+            }
         } else {
             redirectWithAlert("edit.php?id=$appointmentId", 'Failed to update appointment. Please try again.', 'error');
         }

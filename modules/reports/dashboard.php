@@ -74,6 +74,30 @@ $studentStats = $reportingService->getStudentEnrollmentStats($startDate, $endDat
         </div>
 
         <div class="flex gap-2">
+            <!-- PDF Reports Dropdown -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" class="btn-primary px-4 py-2 text-sm rounded-lg flex items-center gap-2">
+                    📄 Download PDF
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <div x-show="open" @click.away="open = false" x-transition
+                    class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 z-10">
+                    <a href="generate_pdf.php?type=counselor&start_date=<?php echo date('Y-m-d', strtotime($startDate)); ?>&end_date=<?php echo date('Y-m-d', strtotime($endDate)); ?>"
+                        class="block px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 border-b border-slate-100">
+                        📊 Counselor Performance
+                    </a>
+                    <a href="generate_pdf.php?type=financial&start_date=<?php echo date('Y-m-d', strtotime($startDate)); ?>&end_date=<?php echo date('Y-m-d', strtotime($endDate)); ?>"
+                        class="block px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 border-b border-slate-100">
+                        💰 Financial Summary
+                    </a>
+                    <a href="generate_pdf.php?type=pipeline&start_date=<?php echo date('Y-m-d', strtotime($startDate)); ?>&end_date=<?php echo date('Y-m-d', strtotime($endDate)); ?>"
+                        class="block px-4 py-3 hover:bg-slate-50 text-sm text-slate-700">
+                        📈 Inquiry Pipeline
+                    </a>
+                </div>
+            </div>
             <button onclick="exportToCSV()" class="btn-secondary px-4 py-2 text-sm rounded-lg">📥 Export CSV</button>
         </div>
     </div>

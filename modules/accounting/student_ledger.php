@@ -29,8 +29,9 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_fee']
     $due_date = $_POST['due_date'];
 
     if ($amount > 0) {
-        $stmt = $pdo->prepare("INSERT INTO student_fees (student_id, fee_type_id, description, amount, due_date, status) VALUES (?, ?, ?, ?, ?, 'unpaid')");
-        $stmt->execute([$student_id, $fee_type_id, $desc, $amount, $due_date]);
+        $invoice_number = 'INV-' . strtoupper(uniqid());
+        $stmt = $pdo->prepare("INSERT INTO invoices (student_id, fee_type_id, invoice_number, amount, due_date, status) VALUES (?, ?, ?, ?, ?, 'unpaid')");
+        $stmt->execute([$student_id, $fee_type_id, $invoice_number, $amount, $due_date]);
         redirectWithAlert("student_ledger.php?student_id=$student_id", "Fee assigned successfully.", "success");
     } else {
         redirectWithAlert("student_ledger.php?student_id=$student_id", "Amount must be greater than zero.", "error");
@@ -39,22 +40,22 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_fee']
 
 // 2. Record Payment
 if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_payment'])) {
-    $fee_id = $_POST['fee_id'];
+    $invoice_id = $_POST['fee_id'];
     $amount = (float) $_POST['amount'];
     $method = $_POST['method'];
     $remarks = sanitize($_POST['remarks']);
 
     if ($amount > 0) {
-        // Calculate remaining due for this fee
-        $sum = $pdo->prepare("SELECT SUM(amount) FROM payments WHERE student_fee_id = ?");
-        $sum->execute([$fee_id]);
+        // Calculate remaining due for this invoice
+        $sum = $pdo->prepare("SELECT SUM(amount) FROM payments WHERE invoice_id = ?");
+        $sum->execute([$invoice_id]);
         $total_paid_already = $sum->fetchColumn() ?: 0;
 
-        $fee_info = $pdo->prepare("SELECT amount FROM student_fees WHERE id = ?");
-        $fee_info->execute([$fee_id]);
-        $fee_total = $fee_info->fetchColumn();
+        $invoice_info = $pdo->prepare("SELECT amount FROM invoices WHERE id = ?");
+        $invoice_info->execute([$invoice_id]);
+        $invoice_total = $invoice_info->fetchColumn();
 
-        $limit = $fee_total - $total_paid_already;
+        $limit = $invoice_total - $total_paid_already;
 
         if ($amount > $limit) {
             redirectWithAlert("student_ledger.php?student_id=$student_id", "Payment exceeds remaining balance. Please check the amount.", "error");
@@ -62,17 +63,17 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_pa
             $pdo->beginTransaction();
 
             // Insert Payment
-            $stmt = $pdo->prepare("INSERT INTO payments (student_fee_id, amount, payment_method, remarks) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$fee_id, $amount, $method, $remarks]);
+            $stmt = $pdo->prepare("INSERT INTO payments (invoice_id, student_id, amount, payment_method, remarks, payment_date) VALUES (?, ?, ?, ?, ?, CURDATE())");
+            $stmt->execute([$invoice_id, $student_id, $amount, $method, $remarks]);
 
             $total_paid_new = $total_paid_already + $amount;
 
             $new_status = 'partial';
-            if ($total_paid_new >= $fee_total)
+            if ($total_paid_new >= $invoice_total)
                 $new_status = 'paid';
 
-            $upd = $pdo->prepare("UPDATE student_fees SET status = ? WHERE id = ?");
-            $upd->execute([$new_status, $fee_id]);
+            $upd = $pdo->prepare("UPDATE invoices SET status = ? WHERE id = ?");
+            $upd->execute([$new_status, $invoice_id]);
 
             $pdo->commit();
             redirectWithAlert("student_ledger.php?student_id=$student_id", "Payment recorded successfully.", "success");
@@ -83,19 +84,18 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_pa
 // 3. Delete Fee (Added for CRUD completeness)
 if ($isAdmin && isset($_GET['delete_fee'])) {
     $fid = (int) $_GET['delete_fee'];
-    $stmt = $pdo->prepare("DELETE FROM student_fees WHERE id = ? AND status = 'unpaid'");
-    $stmt->execute([$fid]);
+    $stmt = $pdo->prepare("DELETE FROM invoices WHERE id = ? AND status = 'unpaid'");
     $stmt->execute([$fid]);
     redirectWithAlert("student_ledger.php?student_id=" . $student_id, "Fee deleted successfully.", "success");
 }
 
 // Fetch Ledger Data
 $fees = $pdo->prepare("
-    SELECT sf.*, ft.name as fee_type 
-    FROM student_fees sf 
-    LEFT JOIN fee_types ft ON sf.fee_type_id = ft.id 
-    WHERE sf.student_id = ? 
-    ORDER BY sf.created_at DESC
+    SELECT i.*, ft.name as fee_type 
+    FROM invoices i 
+    LEFT JOIN fee_types ft ON i.fee_type_id = ft.id 
+    WHERE i.student_id = ? 
+    ORDER BY i.created_at DESC
 ");
 $fees->execute([$student_id]);
 $all_fees = $fees->fetchAll();
@@ -208,7 +208,7 @@ require_once '../../templates/header.php';
             <?php $total_outstanding = 0; ?>
             <?php foreach ($all_fees as $f): ?>
                 <?php
-                $pays = $pdo->prepare("SELECT * FROM payments WHERE student_fee_id = ?");
+                $pays = $pdo->prepare("SELECT * FROM payments WHERE invoice_id = ?");
                 $pays->execute([$f['id']]);
                 $payments = $pays->fetchAll();
 
@@ -225,8 +225,7 @@ require_once '../../templates/header.php';
                     <td><?php echo date('Y-m-d', strtotime($f['created_at'])); ?></td>
                     <td>
                         <strong><?php echo htmlspecialchars($f['fee_type']); ?></strong>
-                        <?php if ($f['description'])
-                            echo "<br><small>" . htmlspecialchars($f['description']) . "</small>"; ?>
+                        <br><small><?php echo htmlspecialchars($f['invoice_number'] ?? ''); ?></small>
                     </td>
                     <td><?php echo $f['due_date']; ?></td>
                     <td>$<?php echo number_format($f['amount'], 2); ?></td>

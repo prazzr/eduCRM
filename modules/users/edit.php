@@ -22,6 +22,11 @@ $active_role_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
 $all_roles = $pdo->query("SELECT * FROM roles")->fetchAll();
 
+// Get available notification channels and user's preferences
+$notifPrefService = new \EduCRM\Services\NotificationPreferenceService($pdo);
+$availableChannels = $notifPrefService->getAvailableChannels();
+$userPrefs = $notifPrefService->getUserPreferences($id);
+
 $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = sanitize($_POST['name']);
@@ -43,6 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $pdo->commit();
+
+        // Save notification preferences
+        $selectedChannels = $_POST['notification_channels'] ?? ['email'];
+        $notifPrefService->saveUserPreferences($id, $selectedChannels);
+
         redirectWithAlert("list.php", "User profile updated successfully.", 'success');
     } else {
         redirectWithAlert("edit.php?id=$id", "Please provide both Name and Email.", 'error');
@@ -88,6 +98,28 @@ require_once '../../templates/header.php';
                         <?php echo ucfirst($role['name']); ?>
                     </label>
                 <?php endforeach; ?>
+            </div>
+        </div>
+
+        <!-- Notification Preferences -->
+        <div class="form-group">
+            <label>Notification Preferences</label>
+            <div style="background: #f8fafc; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b;">Select how this user receives notifications:</p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
+                    <?php foreach ($availableChannels as $channel): ?>
+                        <?php 
+                        $isChecked = isset($userPrefs[$channel['type']]) ? $userPrefs[$channel['type']] : $channel['default'];
+                        ?>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; background: white; border: 1px solid #e2e8f0; border-radius: 6px;">
+                            <input type="checkbox" name="notification_channels[]" value="<?php echo $channel['type']; ?>"
+                                <?php echo $isChecked ? 'checked' : ''; ?>
+                                style="width: 16px; height: 16px;">
+                            <span style="font-size: 16px;"><?php echo $channel['icon']; ?></span>
+                            <span style="font-size: 14px; font-weight: 500;"><?php echo htmlspecialchars($channel['label']); ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
             </div>
         </div>
 

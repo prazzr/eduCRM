@@ -87,8 +87,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'inquiry_id' => ($client_type === 'inquiry' && $client_id) ? $client_id : null
             ];
 
-            if ($appointmentService->createAppointment($appointmentData)) {
-                redirectWithAlert("list.php", 'Appointment scheduled successfully!', 'success');
+            $newAppointmentId = $appointmentService->createAppointment($appointmentData);
+            if ($newAppointmentId) {
+                // Sync to Google Calendar if connected
+                try {
+                    $calendarService = new \EduCRM\Services\GoogleCalendarService($pdo);
+                    if ($calendarService->isConnected($counselor_id)) {
+                        $appointmentData['id'] = $newAppointmentId;
+                        $appointmentData['counselor_id'] = $counselor_id;
+                        $syncResult = $calendarService->syncAppointment($appointmentData);
+                        if ($syncResult['success']) {
+                            redirectWithAlert("list.php", 'Appointment scheduled and synced to Google Calendar!', 'success');
+                        } else {
+                            redirectWithAlert("list.php", 'Appointment scheduled! (Calendar sync failed: ' . $syncResult['error'] . ')', 'success');
+                        }
+                    } else {
+                        redirectWithAlert("list.php", 'Appointment scheduled successfully!', 'success');
+                    }
+                } catch (\Exception $e) {
+                    redirectWithAlert("list.php", 'Appointment scheduled! (Calendar sync error)', 'success');
+                }
             } else {
                 redirectWithAlert("add.php", 'Failed to schedule appointment. Please try again.', 'error');
             }

@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
     try {
         $category = $_POST['category'] ?? null;
         $description = $_POST['description'] ?? null;
+        $expiryDate = !empty($_POST['expiry_date']) ? $_POST['expiry_date'] : null;
 
         $documentId = $documentService->uploadDocument(
             $_FILES['document'],
@@ -23,6 +24,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
             $category,
             $description
         );
+
+        // Update expiry date if provided
+        if ($documentId && $expiryDate) {
+            $expiryService = new \EduCRM\Services\DocumentExpiryService($pdo);
+            $expiryService->updateExpiryDate($documentId, $expiryDate);
+        }
 
         if ($documentId) {
             $_SESSION['flash_message'] = 'Document uploaded successfully';
@@ -115,11 +122,26 @@ $categories = $documentService->getCategories();
         </div>
 
         <!-- Description -->
-        <div class="mb-6">
+        <div class="mb-4">
             <label class="block text-sm font-medium text-slate-700 mb-2">Description (Optional)</label>
             <textarea name="description" rows="3"
                 class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 placeholder="Add notes about this document..."></textarea>
+        </div>
+
+        <!-- Expiry Date (Phase 1 Feature) -->
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-slate-700 mb-2">
+                Expiry Date (Optional)
+                <span class="font-normal text-slate-500">— for passports, visas, etc.</span>
+            </label>
+            <div class="flex items-center gap-3">
+                <input type="date" name="expiry_date"
+                    class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    min="<?php echo date('Y-m-d'); ?>">
+                <span class="text-sm text-slate-500">📅 Leave blank if not applicable</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">You'll receive alerts 30, 14, and 7 days before expiry.</p>
         </div>
 
         <!-- File Requirements -->
