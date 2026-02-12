@@ -8,7 +8,7 @@ require_once '../../app/bootstrap.php';
 
 
 requireLogin();
-requireAdminCounselorOrBranchManager();
+requireCRMAccess();
 
 $message = '';
 $error = '';

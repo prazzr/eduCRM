@@ -2,7 +2,7 @@
 require_once '../../app/bootstrap.php';
 requireLogin();
 
-requireAdminCounselorOrBranchManager();
+requireCRMAccess();
 
 // Fetch all students with visa workflows including SLA fields
 $stmt = $pdo->prepare("

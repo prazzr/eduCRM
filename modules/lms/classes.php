@@ -5,7 +5,7 @@ requireLogin();
 requireRoles(['admin', 'teacher', 'student']);
 
 $message = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (hasRole('admin') || hasRole('teacher'))) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (hasRole('admin') || hasRole('branch_manager') || hasRole('counselor') || hasRole('accountant') || hasRole('teacher'))) {
     $course_id = $_POST['course_id'];
     $teacher_id = $_POST['teacher_id'];
     $name = sanitize($_POST['name']);
@@ -61,7 +61,7 @@ require_once '../../templates/header.php';
 
     <?php renderFlashMessage(); ?>
 
-    <?php if (hasRole('admin')): ?>
+    <?php if (hasRole('admin') || hasRole('branch_manager') || hasRole('counselor') || hasRole('accountant')): ?>
         <form method="POST" style="margin-bottom: 30px;" id="createClassForm">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                 <div class="form-group">
@@ -164,7 +164,7 @@ require_once '../../templates/header.php';
                         <div style="display: flex; gap: 5px;">
                             <a href="classroom.php?class_id=<?php echo $cl['id']; ?>" class="btn btn-secondary"
                                 style="padding: 5px 10px; font-size: 11px;">Manage Classroom</a>
-                            <?php if (hasRole('admin')): ?>
+                            <?php if (hasRole('admin') || hasRole('branch_manager') || hasRole('counselor') || hasRole('accountant')): ?>
                                 <a href="class_edit.php?id=<?php echo $cl['id']; ?>" class="btn btn-secondary"
                                     style="padding: 5px 10px; font-size: 11px;">Edit</a>
                                 <a href="#" onclick="confirmDelete(<?php echo $cl['id']; ?>)" class="btn"

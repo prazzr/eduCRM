@@ -8,7 +8,7 @@ require_once '../../app/bootstrap.php';
 
 
 requireLogin();
-requireAdminCounselorOrBranchManager();
+requireCRMAccess();
 
 // Load lookup data using cached service (replaces direct queries)
 $lookup = \EduCRM\Services\LookupCacheService::getInstance($pdo);

@@ -109,6 +109,26 @@ function requireBranchManager(): void
     requireRoles(['admin', 'branch_manager']);
 }
 
+function requireAnalyticsAccess(): void
+{
+    requireRoles(['admin', 'branch_manager', 'accountant']);
+}
+
+function requireFinanceAccess(): void
+{
+    requireRoles(['admin', 'branch_manager', 'accountant']);
+}
+
+function requireLMSManagementAccess(): void
+{
+    requireRoles(['admin', 'branch_manager', 'counselor', 'accountant']);
+}
+
+function requireCRMAccess(): void
+{
+    requireRoles(['admin', 'branch_manager', 'counselor', 'accountant']);
+}
+
 function requireAdminCounselorOrBranchManager(): void
 {
     requireRoles(['admin', 'counselor', 'branch_manager']);

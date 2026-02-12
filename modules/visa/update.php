@@ -8,7 +8,7 @@ require_once '../../app/bootstrap.php';
 
 
 requireLogin();
-requireAdminCounselorOrBranchManager();
+requireCRMAccess();
 
 // Validate student ID parameter
 $student_id = isset($_GET['student_id']) ? (int) $_GET['student_id'] : 0;

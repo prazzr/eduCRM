@@ -1,0 +1,33 @@
+{
+    "name": "educrm/crm",
+    "description": "eduCRM - CRM for educational institutions",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "phpmailer/phpmailer": "^6.9",
+        "slim/slim": "^4.12",
+        "slim/psr7": "^1.6",
+        "php-di/php-di": "^7.0",
+        "illuminate/database": "^9.52",
+        "illuminate/events": "^9.52",
+        "firebase/php-jwt": "^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6",
+        "zircote/swagger-php": "^5.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "EduCRM\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "EduCRM\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test-coverage": "phpunit --coverage-html coverage"
+    }
+}

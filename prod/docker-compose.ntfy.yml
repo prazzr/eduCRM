@@ -1,0 +1,35 @@
+version: "3.8"
+
+# ntfy Self-Hosted Push Notification Server
+# Part of EduCRM Phase 3: Mobile Readiness
+#
+# Usage:
+#   docker-compose -f docker-compose.ntfy.yml up -d
+#
+# Access:
+#   - Web UI: http://localhost:8090
+#   - API: http://localhost:8090/{topic}
+
+services:
+  ntfy:
+    image: binwiederhier/ntfy
+    container_name: educrm-ntfy
+    command:
+      - serve
+    environment:
+      - TZ=Asia/Kathmandu
+    volumes:
+      - ./ntfy/cache:/var/cache/ntfy
+      - ./ntfy/config:/etc/ntfy
+    ports:
+      - "8090:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.educrm.service=push-notifications"
+      - "com.educrm.description=Self-hosted ntfy push notification server"

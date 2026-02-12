@@ -2,14 +2,23 @@
 // Messaging Module Common Navigation
 $current_page = basename($_SERVER['PHP_SELF']);
 
-$nav_items = [
-    'gateways.php' => ['label' => 'Gateways', 'icon' => 'server'],
-    'templates.php' => ['label' => 'Templates', 'icon' => 'file-text'],
-    'campaigns.php' => ['label' => 'Campaigns', 'icon' => 'send'],
-    'queue.php' => ['label' => 'Queue', 'icon' => 'list'],
-    'contacts.php' => ['label' => 'Contacts', 'icon' => 'users'],
-    'gateway_logs.php' => ['label' => 'Logs', 'icon' => 'activity'],
-];
+$nav_items = [];
+
+// Gateways tab - admin only (system infrastructure)
+if (hasRole('admin')) {
+    $nav_items['gateways.php'] = ['label' => 'Gateways', 'icon' => 'server'];
+}
+
+// Common tabs for admin, counselor, and branch_manager
+$nav_items['templates.php'] = ['label' => 'Templates', 'icon' => 'file-text'];
+$nav_items['campaigns.php'] = ['label' => 'Campaigns', 'icon' => 'send'];
+$nav_items['queue.php'] = ['label' => 'Queue', 'icon' => 'list'];
+$nav_items['contacts.php'] = ['label' => 'Contacts', 'icon' => 'users'];
+
+// Logs tab - admin only
+if (hasRole('admin')) {
+    $nav_items['gateway_logs.php'] = ['label' => 'Logs', 'icon' => 'activity'];
+}
 ?>
 
 <div class="mb-6 border-b border-slate-200">

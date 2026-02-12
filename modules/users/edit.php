@@ -2,7 +2,7 @@
 require_once '../../app/bootstrap.php';
 requireLogin();
 
-requireAdmin();
+requireBranchManager();
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if (!$id)

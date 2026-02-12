@@ -3,7 +3,7 @@ require_once '../../app/bootstrap.php';
 
 
 requireLogin();
-requireAdminCounselorOrBranchManager();
+requireAnalyticsAccess();
 
 $pageDetails = ['title' => 'Reports & Analytics'];
 require_once '../../templates/header.php';

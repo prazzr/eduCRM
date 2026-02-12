@@ -10,7 +10,7 @@ require_once '../../app/bootstrap.php';
 
 
 requireLogin();
-requireAdminCounselorOrBranchManager();
+requireCRMAccess();
 
 header('Content-Type: application/json');
 

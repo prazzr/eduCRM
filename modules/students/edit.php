@@ -7,7 +7,7 @@ require_once '../../app/bootstrap.php';
 
 
 requireLogin();
-requireAdminCounselorOrBranchManager();
+requireCRMAccess();
 
 // Validate ID parameter
 $id = requireIdParam();

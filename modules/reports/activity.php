@@ -8,13 +8,11 @@ require_once '../../app/bootstrap.php';
 
 
 requireLogin();
+requireBranchManager();
 
 // Admin or Branch Manager can view activities
 $isAdmin = hasRole('admin');
 $isBranchManager = hasRole('branch_manager');
-if (!$isAdmin && !$isBranchManager) {
-    die("Access denied. Admin or Branch Manager only.");
-}
 
 $activityService = new \EduCRM\Services\ActivityService($pdo);
 

@@ -8,7 +8,7 @@ require_once '../../app/bootstrap.php';
 requireLogin();
 
 // Admin, Counselor, or Branch Manager access only
-requireAdminCounselorOrBranchManager();
+requireCRMAccess();
 
 
 $branchService = new \EduCRM\Services\BranchService($pdo);

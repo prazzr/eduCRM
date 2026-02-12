@@ -1,0 +1,35 @@
+# EduCRM Public .htaccess
+
+# Disable directory browsing
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Skip existing files and directories
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Redirect everything else to front controller
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Set environment variables
+<IfModule mod_env.c>
+    SetEnv APP_ENV production
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Deny access to sensitive files
+<FilesMatch "(^\.env|composer\.json|composer\.lock)$">
+    Require all denied
+</FilesMatch>

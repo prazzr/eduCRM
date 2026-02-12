@@ -1,0 +1,26 @@
+<?php
+// ... (Previous Content)
+?>
+<!-- We need to link to the new Profile Page from the USER LIST or INQUIRY LIST -->
+<!-- Updating modules/inquiries/list.php to include a link to view profile if converted -->
+
+                    <a href="convert.php?id=<?php echo $inq['id']; ?>" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">Convert to Student</a>
+                    <!-- NEW LINK -->
+                    <?php if($inq['status'] === 'converted'): ?>
+                         <!-- Need to find the user_id for this inquiry email first, simpler to just query it or assume we can find it. 
+                              For now let's just create a generic link or lookup. 
+                              Actually, 'convert.php' creates a User. ideally we store user_id in inquiries table but we didn't add that column yet.
+                              Let's just search by email. -->
+                         <?php 
+                            // Quick lookup for link generation (inefficient in loop but works for prototype)
+                            // In real app, JOIN with users table
+                            $u = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+                            $u->execute([$inq['email']]);
+                            $uid = $u->fetchColumn();
+                            if($uid):
+                         ?>
+                            <a href="<?php echo BASE_URL; ?>modules/students/profile.php?id=<?php echo $uid; ?>" class="btn" style="padding: 5px 10px; font-size: 12px; background: #6366f1;">View Profile</a>
+                         <?php endif; ?>
+                    <?php endif; ?>
+
+<!-- ... -->

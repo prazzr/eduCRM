@@ -1,0 +1,54 @@
+# ntfy Server Configuration for EduCRM
+# =====================================
+# This configuration file controls the ntfy push notification server.
+# Place this file at: ntfy/config/server.yml
+#
+# Documentation: https://docs.ntfy.sh/config/
+
+# Base URL - Update this to your public-facing URL for mobile app access
+base-url: "http://localhost:8090"
+
+# Cache settings
+cache-file: "/var/cache/ntfy/cache.db"
+cache-duration: "12h"
+cache-startup-queries: |
+  pragma journal_mode = wal;
+  pragma synchronous = normal;
+  pragma temp_store = memory;
+  pragma busy_timeout = 15000;
+  vacuum;
+
+# Authentication (Optional - Uncomment to enable)
+# auth-file: "/var/cache/ntfy/user.db"
+# auth-default-access: "deny-all"
+
+# Rate limiting - Prevents abuse
+visitor-request-limit-burst: 60
+visitor-request-limit-replenish: "5s"
+visitor-email-limit-burst: 5
+visitor-email-limit-replenish: "1m"
+
+# Attachment configuration
+attachment-total-size-limit: "1G"
+attachment-file-size-limit: "15M"
+attachment-expiry-duration: "3h"
+
+# Message limits
+message-size-limit: "4k"
+
+# Logging
+log-level: "INFO"
+log-format: "text"
+
+# Web Push (for browser notifications)
+# Uncomment and configure for browser push support
+# web-push-public-key: "<your-public-key>"
+# web-push-private-key: "<your-private-key>"
+# web-push-email-address: "admin@yourcompany.com"
+
+# Behind reverse proxy settings
+# behind-proxy: true
+
+# Metrics (for monitoring)
+# enable-metrics: true
+# metrics-listen-http: ":9090"

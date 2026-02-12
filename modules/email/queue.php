@@ -8,7 +8,7 @@ require_once '../../app/bootstrap.php';
 
 
 requireLogin();
-requireAdminCounselorOrBranchManager();
+requireBranchManager();
 
 $pageDetails = ['title' => 'Email Queue'];
 
@@ -111,18 +111,22 @@ require_once '../../templates/header.php';
         <a href="compose.php" class="btn btn-primary">
             <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Compose
         </a>
-        <form method="POST" class="inline">
-            <input type="hidden" name="action" value="process_queue">
-            <button type="submit" class="btn btn-success">
-                <?php echo \EduCRM\Services\NavigationService::getIcon('play', 16); ?> Process Queue
-            </button>
-        </form>
+        <?php if (hasRole('admin')): ?>
+            <form method="POST" class="inline">
+                <input type="hidden" name="action" value="process_queue">
+                <button type="submit" class="btn btn-success">
+                    <?php echo \EduCRM\Services\NavigationService::getIcon('play', 16); ?> Process Queue
+                </button>
+            </form>
+        <?php endif; ?>
         <a href="templates.php" class="btn btn-secondary">
             <?php echo \EduCRM\Services\NavigationService::getIcon('file-text', 16); ?> Templates
         </a>
-        <a href="settings.php" class="btn btn-secondary">
-            <?php echo \EduCRM\Services\NavigationService::getIcon('settings', 16); ?> Settings
-        </a>
+        <?php if (hasRole('admin')): ?>
+            <a href="settings.php" class="btn btn-secondary">
+                <?php echo \EduCRM\Services\NavigationService::getIcon('settings', 16); ?> Settings
+            </a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -294,9 +298,11 @@ require_once '../../templates/header.php';
                             </td>
                             <td class="p-3">
                                 <div class="text-sm text-slate-700">
-                                    <?php echo date('M d, Y', strtotime($email['created_at'])); ?></div>
+                                    <?php echo date('M d, Y', strtotime($email['created_at'])); ?>
+                                </div>
                                 <div class="text-xs text-slate-500">
-                                    <?php echo date('h:i A', strtotime($email['created_at'])); ?></div>
+                                    <?php echo date('h:i A', strtotime($email['created_at'])); ?>
+                                </div>
                             </td>
                             <td class="p-3 text-right">
                                 <div class="flex gap-1 justify-end">
@@ -353,15 +359,17 @@ require_once '../../templates/header.php';
     <?php endif; ?>
 </div>
 
-<!-- Quick Actions -->
-<div class="mt-4 flex justify-end">
-    <form method="POST" onsubmit="return confirm('Clear all sent emails older than 7 days?');">
-        <input type="hidden" name="action" value="clear_sent">
-        <button type="submit" class="btn btn-secondary btn-sm">
-            <?php echo \EduCRM\Services\NavigationService::getIcon('trash', 14); ?> Clear Old Sent Emails
-        </button>
-    </form>
-</div>
+<!-- Quick Actions (admin only) -->
+<?php if (hasRole('admin')): ?>
+    <div class="mt-4 flex justify-end">
+        <form method="POST" onsubmit="return confirm('Clear all sent emails older than 7 days?');">
+            <input type="hidden" name="action" value="clear_sent">
+            <button type="submit" class="btn btn-secondary btn-sm">
+                <?php echo \EduCRM\Services\NavigationService::getIcon('trash', 14); ?> Clear Old Sent Emails
+            </button>
+        </form>
+    </div>
+<?php endif; ?>
 
 <!-- Email Preview Modal -->
 <div id="emailModal"

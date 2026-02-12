@@ -7,7 +7,7 @@
 require_once '../../app/bootstrap.php';
 
 requireLogin();
-requireAdmin();
+requireBranchManager();
 
 $pageDetails = ['title' => 'Notification Templates'];
 
@@ -30,9 +30,11 @@ require_once '../../templates/header.php';
         <p class="text-slate-500 mt-1 text-sm">Customize templates for all channels (Email, SMS, WhatsApp)</p>
     </div>
     <div class="flex gap-3">
-        <a href="add_template.php" class="btn btn-primary">
-            <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Create Template
-        </a>
+        <?php if (hasRole('admin')): ?>
+            <a href="add_template.php" class="btn btn-primary">
+                <?php echo \EduCRM\Services\NavigationService::getIcon('plus', 16); ?> Create Template
+            </a>
+        <?php endif; ?>
         <a href="../email/queue.php" class="btn btn-secondary">
             <?php echo \EduCRM\Services\NavigationService::getIcon('arrow-left', 16); ?> Back to Queue
         </a>
